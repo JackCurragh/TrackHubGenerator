@@ -2,7 +2,6 @@
 // Subworkflow for BEDGRAPH file processing
 //
 
-include { VALIDATE_BEDGRAPH }           from '../../modules/local/validate/bedgraph.nf'
 include { CONVERT_BEDGRAPH_TO_BIGWIG }  from '../../modules/local/convert/bedGraphToBigWig.nf'
 
 workflow BEDGRAPH_PROCESSING {
@@ -13,12 +12,8 @@ workflow BEDGRAPH_PROCESSING {
     main:
     ch_versions = Channel.empty()
 
-    // Validate BEDGRAPH files
-    ch_validated_bedgraph = VALIDATE_BEDGRAPH(ch_bedgraph_files)
-    ch_versions = ch_versions.mix(VALIDATE_BEDGRAPH.out.versions)
-
     // Convert BEDGRAPH to BigWig
-    ch_converted_bigwig = CONVERT_BEDGRAPH_TO_BIGWIG(ch_validated_bedgraph, ch_chrom_sizes)
+    ch_converted_bigwig = CONVERT_BEDGRAPH_TO_BIGWIG(ch_bedgraph_files, ch_chrom_sizes)
     ch_versions = ch_versions.mix(CONVERT_BEDGRAPH_TO_BIGWIG.out.versions)
 
     emit:

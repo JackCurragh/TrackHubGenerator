@@ -1,5 +1,3 @@
-
-
 process CONVERT_BEDGRAPH_TO_BIGWIG {
     tag "$meta.id"
     label 'process_low'
@@ -27,16 +25,20 @@ process CONVERT_BEDGRAPH_TO_BIGWIG {
         $chrom_sizes \\
         ${prefix}.bw
 
-    # Version reporting
-    echo '"${task.process}":' > versions.yml
-    echo ' command: "$(bedGraphToBigWig --version 2>&1 | sed 's/^/    /')"' >> versions.yml
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        bedgraphtobigwig: \$(bedGraphToBigWig 2>&1 | head -n1 | sed 's/^bedGraphToBigWig v//')
+    END_VERSIONS
     """
 
     stub:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
     touch ${prefix}.bw
-    echo '"${task.process}":' > versions.yml
-    echo ' command: "your_command_stub"' >> versions.yml
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        bedgraphtobigwig: \$(bedGraphToBigWig 2>&1 | head -n1 | sed 's/^bedGraphToBigWig v//')
+    END_VERSIONS
     """
 }

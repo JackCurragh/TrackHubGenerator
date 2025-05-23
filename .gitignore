@@ -178,3 +178,5 @@ Processed_outputs
 .nextflow
 Processed outputs/
 work/
+.nextflow*
+results/

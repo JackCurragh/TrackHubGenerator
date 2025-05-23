@@ -1,13 +1,11 @@
-
-
 process GET_CHROM_SIZES_FASTA {
     tag "$fasta.baseName"
     label 'process_low'
 
-    conda "bioconda::package_name=X.Y.Z"
+    conda "bioconda::samtools=1.17"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/package_name:X.Y.Z--hash' :
-        'biocontainers/package_name:X.Y.Z--hash' }"
+        'https://depot.galaxyproject.org/singularity/samtools:1.17--h00cdaf9_0' :
+        'biocontainers/samtools:1.17--h00cdaf9_0' }"
 
     input:
     path fasta
@@ -19,17 +17,21 @@ process GET_CHROM_SIZES_FASTA {
     script:
     """
     samtools faidx ${fasta} 
-    cut -f1,2 i${fasta}.fai > chrom.sizes
+    cut -f1,2 ${fasta}.fai > chrom.sizes
 
-    # Version reporting
-    echo '"${task.process}":' > versions.yml
-    echo ' command: "$(samtools --version 2>&1 | sed 's/^/    /')"' >> versions.yml
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        samtools: \$(echo \$(samtools --version 2>&1) | sed 's/^.*samtools //; s/Using.*\$//')
+    END_VERSIONS
     """
 
     stub:
     """
     touch chrom.sizes
-    echo '"${task.process}":' > versions.yml
-    echo ' command: "your_command_stub"' >> versions.yml
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        samtools: \$(echo \$(samtools --version 2>&1) | sed 's/^.*samtools //; s/Using.*\$//')
+    END_VERSIONS
     """
 }

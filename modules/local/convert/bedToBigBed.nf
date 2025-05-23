@@ -1,5 +1,3 @@
-
-
 process CONVERT_BED_TO_BIGBED {
     tag "$meta.id"
     label 'process_low'
@@ -14,7 +12,7 @@ process CONVERT_BED_TO_BIGBED {
     path chrom_sizes
 
     output:
-    tuple val(meta), path("*.bb"), emit: bigwig
+    tuple val(meta), path("*.bb"), emit: bigbed
     path "versions.yml"           , emit: versions
 
     script:
@@ -27,16 +25,20 @@ process CONVERT_BED_TO_BIGBED {
         $chrom_sizes \\
         ${prefix}.bb
 
-    # Version reporting
-    echo '"${task.process}":' > versions.yml
-    echo ' command: "$(bedToBigBed --version 2>&1 | sed 's/^/    /')"' >> versions.yml
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        bedtobigbed: \$(bedToBigBed 2>&1 | head -n1 | sed 's/^bedToBigBed v//')
+    END_VERSIONS
     """
 
     stub:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    touch ${prefix}.bw
-    echo '"${task.process}":' > versions.yml
-    echo ' command: "your_command_stub"' >> versions.yml
+    touch ${prefix}.bb
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        bedtobigbed: \$(bedToBigBed 2>&1 | head -n1 | sed 's/^bedToBigBed v//')
+    END_VERSIONS
     """
 }
