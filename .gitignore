@@ -176,3 +176,4 @@ cython_debug/
 .zip
 Processed_outputs
 .nextflow
+Processed outputs/
