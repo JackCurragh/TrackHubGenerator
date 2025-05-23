@@ -6,7 +6,7 @@ process CONVERT_BED_TO_BIGBED {
 
     conda "bioconda::ucsc-bedtobigbed"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/ucsc-bedtobigbed:357--1 :
+        'https://depot.galaxyproject.org/singularity/ucsc-bedtobigbed:357--1' :
         'biocontainers/ucsc-bedtobigbed:357--1' }"
 
     input:

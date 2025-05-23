@@ -1,7 +1,7 @@
 
 
-process PROCESS_NAME {
-    tag "$meta.id"
+process GET_CHROM_SIZES_FASTA {
+    tag "$fasta.baseName"
     label 'process_low'
 
     conda "bioconda::package_name=X.Y.Z"
@@ -13,12 +13,10 @@ process PROCESS_NAME {
     path fasta
 
     output:
-    path("chrom.sizes")   , emit: chrom_sizes
-    path "versions.yml"           , emit: versions
+    path("chrom.sizes")         , emit: chrom_sizes
+    path "versions.yml"         , emit: versions
 
     script:
-    def args = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}"
     """
     samtools faidx ${fasta} 
     cut -f1,2 i${fasta}.fai > chrom.sizes
@@ -29,7 +27,6 @@ process PROCESS_NAME {
     """
 
     stub:
-    def prefix = task.ext.prefix ?: "${meta.id}"
     """
     touch chrom.sizes
     echo '"${task.process}":' > versions.yml

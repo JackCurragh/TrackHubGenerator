@@ -1,6 +1,6 @@
 
 
-process PROCESS_NAME {
+process VALIDATE_BED {
     tag "$meta.id"
     label 'process_low'
 

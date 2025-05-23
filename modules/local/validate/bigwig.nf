@@ -1,6 +1,6 @@
 
 
-process PROCESS_NAME {
+process VALIDATE_BIGWIG {
     tag "$meta.id"
     label 'process_low'
 

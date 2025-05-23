@@ -1,7 +1,7 @@
 
 
-process PROCESS_NAME {
-    tag "$meta.id"
+process GET_CHROM_SIZES_UCSC {
+    tag "$ucsc_genome_db"
     label 'process_low'
 
     conda "bioconda::ucsc-fetchchromsizes"
@@ -17,7 +17,6 @@ process PROCESS_NAME {
     path "versions.yml"  , emit: versions
 
     script:
-    def args = task.ext.args ?: ''
     """
     fetchChromSizes ${ucsc_genome_db} > ${ucsc_genome_db}.chrom_sizes
 
@@ -27,7 +26,6 @@ process PROCESS_NAME {
     """
 
     stub:
-    def prefix = task.ext.prefix ?: "${meta.id}"
     """
     touch ${ucsc_genome_db}.chrom_sizes
     echo '"${task.process}":' > versions.yml

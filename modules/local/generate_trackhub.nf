@@ -5,12 +5,12 @@
     //     'https://depot.galaxyproject.org/singularity/package_name:X.Y.Z--hash' :
     //     'biocontainers/package_name:X.Y.Z--hash' }"
 
-process CREATE_TRACKHUB {
-    tag "$meta.id"
+process GENERATE_TRACKHUB {
+    tag "$hub_name"
     label 'process_low'
 
     input:
-    tuple val(meta), path(sample_sheet)
+    path(sample_sheet)
     path bigwig
     path bigbed
     val(hub_name)
@@ -26,7 +26,6 @@ process CREATE_TRACKHUB {
 
     script:
     def args = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}"
     def bigwig_paths = bigwig.collect { "--bigwig '$it'" }.join(' ')
     def bigbed_paths = bigbed.collect { "--bigbed '$it'" }.join(' ')
     """

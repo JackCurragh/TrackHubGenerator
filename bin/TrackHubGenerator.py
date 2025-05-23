@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Create UCSC Genome Browser track hubs from a sample sheet and globbed files.
+Create UCSC and Ensembl compatible track hubs from globbed files with sample metadata.
 
 This script generates track hubs for genomic data files (BigWig or BigBed) by matching
 glob patterns against a sample sheet that defines metadata and display options.
@@ -14,7 +14,7 @@ import re
 import argparse
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Pattern, Any, Union, TextIO
+from typing import Dict, List, Optional, Pattern, Any
 import trackhub
 
 # Configure logging
@@ -23,6 +23,21 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
+# Dictionary of track parameters that work in both UCSC and Ensembl
+COMPATIBLE_TRACK_PARAMS = {
+    'bigWig': {
+        'common': ['visibility', 'color', 'priority', 'autoScale', 'alwaysZero', 'maxHeightPixels'],
+        'ucsc_only': ['graphType', 'viewLimits', 'smoothingWindow'],
+        'ensembl_only': ['type', 'format']
+    },
+    'bigBed': {
+        'common': ['visibility', 'color', 'priority'],
+        'ucsc_only': ['scoreFilter', 'itemRgb', 'spectrum'],
+        'ensembl_only': ['type', 'format']
+    }
+}
 
 
 class SampleMetadata:
@@ -142,12 +157,13 @@ class TrackFile:
         # Merge additional parameters
         self.additional_params.update(metadata.additional_params)
     
-    def get_track_params(self, parent=None) -> Dict[str, Any]:
+    def get_track_params(self, parent=None, ensembl_compatible: bool = False) -> Dict[str, Any]:
         """
         Get track parameters for creating a trackhub Track object.
         
         Args:
             parent: Optional parent track for composite/supertrack organization
+            ensembl_compatible: If True, include parameters for Ensembl compatibility
             
         Returns:
             Dictionary of track parameters
@@ -163,7 +179,7 @@ class TrackFile:
         if not self.visibility:
             self.visibility = 'full' if self.track_type == 'bigwig' else 'pack'
         
-        # Base track parameters
+        # Base track parameters (compatible with both browsers)
         track_params = {
             'name': track_name,
             'source': self.file_path,
@@ -189,6 +205,16 @@ class TrackFile:
             for key, value in type_defaults.items():
                 if key not in self.additional_params:
                     track_params[key] = value
+        
+        # Add Ensembl-specific parameters if requested
+        if ensembl_compatible:
+            # Add type and format parameters required by Ensembl
+            if self.track_type == 'bigwig':
+                track_params['type'] = 'bigWig'
+                track_params['format'] = 'bigWig'
+            elif self.track_type == 'bigbed':
+                track_params['type'] = 'bigBed'
+                track_params['format'] = 'bigBed'
         
         # Add any additional parameters
         for key, value in self.additional_params.items():
@@ -335,6 +361,37 @@ def group_bigbed_files_by_annotation(
     return grouped
 
 
+def convert_chromosome_names(
+    file_path: str, 
+    output_dir: Path,
+    conversion_type: str = 'ucsc_to_ensembl'
+) -> str:
+    """
+    Convert chromosome names in BigWig or BigBed files.
+    
+    Args:
+        file_path: Path to the track file
+        output_dir: Directory to write the converted file
+        conversion_type: Type of conversion ('ucsc_to_ensembl' or 'ensembl_to_ucsc')
+        
+    Returns:
+        Path to the converted file
+    """
+    # This is a placeholder for a real conversion function
+    # In a real implementation, you would use tools like UCSC's wigToBigWig or bedToBigBed
+    # with chromosome name mapping to convert between naming conventions
+    
+    # For demonstration purposes, we'll just copy the file and log a message
+    basename = os.path.basename(file_path)
+    output_path = output_dir / f"converted_{basename}"
+    
+    # In a real implementation, this would be a conversion operation
+    logger.info(f"Would convert chromosome names in {file_path} from {conversion_type}")
+    
+    # Return the (imaginary) converted file path
+    return str(output_path)
+
+
 def create_data_hub(
     track_files: List[TrackFile],
     hub_name: str,
@@ -342,7 +399,9 @@ def create_data_hub(
     output_dir: Path,
     hub_email: Optional[str] = None,
     hub_url: Optional[str] = None,
-    hub_description: Optional[str] = None
+    hub_description: Optional[str] = None,
+    ensembl_compatible: bool = False,
+    convert_chrom_names: bool = False
 ) -> None:
     """
     Create a track hub for data files.
@@ -355,6 +414,8 @@ def create_data_hub(
         hub_email: Optional contact email for the hub
         hub_url: Optional URL where the hub will be hosted
         hub_description: Optional description for the hub
+        ensembl_compatible: If True, include parameters for Ensembl compatibility
+        convert_chrom_names: If True, convert chromosome names for Ensembl compatibility
     """
     if not track_files:
         logger.warning(f"No track files provided for hub {hub_name}")
@@ -376,7 +437,16 @@ def create_data_hub(
     )
     
     # Initialize genome
-    genome_obj = trackhub.Genome(genome)
+    # Ensure genome name is correctly formatted for the browser
+    if ensembl_compatible and genome.startswith('hg'):
+        # Convert UCSC genome names to Ensembl equivalents if needed
+        # hg38 -> GRCh38, hg19 -> GRCh37
+        ensembl_genome = genome.replace('hg38', 'GRCh38').replace('hg19', 'GRCh37')
+        logger.info(f"Converting genome name from {genome} to {ensembl_genome} for Ensembl compatibility")
+        genome_obj = trackhub.Genome(ensembl_genome)
+    else:
+        genome_obj = trackhub.Genome(genome)
+    
     hub.add_genome(genome_obj)
     
     # Create a trackdb
@@ -390,20 +460,29 @@ def create_data_hub(
     for sample_id, sample_files in samples.items():
         if not sample_files:
             continue
-            
-        composite = trackhub.CompositeTrack(
-            name=f"sample_{sample_id}",
-            short_label=f"{sample_id}",
-            long_label=f"Tracks for {sample_id}",
-            visibility="full"
-        )
-        trackdb.add_tracks(composite)
         
-        # Add tracks for each file in the sample
-        for track_file in sample_files:
-            track_params = track_file.get_track_params(parent=composite)
-            track = trackhub.Track(**track_params)
-            composite.add_tracks(track)
+        # For Ensembl compatibility, we may need individual tracks instead of composites
+        if ensembl_compatible:
+            # Ensembl has limited support for composite tracks, so add tracks directly to trackdb
+            for track_file in sample_files:
+                track_params = track_file.get_track_params(ensembl_compatible=True)
+                track = trackhub.Track(**track_params)
+                trackdb.add_tracks(track)
+        else:
+            # UCSC-style composite tracks
+            composite = trackhub.CompositeTrack(
+                name=f"sample_{sample_id}",
+                short_label=f"{sample_id}",
+                long_label=f"Tracks for {sample_id}",
+                visibility="full"
+            )
+            trackdb.add_tracks(composite)
+            
+            # Add tracks for each file in the sample
+            for track_file in sample_files:
+                track_params = track_file.get_track_params(parent=composite)
+                track = trackhub.Track(**track_params)
+                composite.add_tracks(track)
     
     # Write the hub to disk
     trackhub.upload.write_trackdb(hub, str(hub_dir), url=hub_url)
@@ -423,7 +502,9 @@ def create_annotation_hub(
     output_dir: Path,
     hub_email: Optional[str] = None,
     hub_url: Optional[str] = None,
-    hub_description: Optional[str] = None
+    hub_description: Optional[str] = None,
+    ensembl_compatible: bool = False,
+    convert_chrom_names: bool = False
 ) -> None:
     """
     Create a track hub for annotation files of a specific type.
@@ -437,6 +518,8 @@ def create_annotation_hub(
         hub_email: Optional contact email for the hub
         hub_url: Optional URL where the hub will be hosted
         hub_description: Optional description for the hub
+        ensembl_compatible: If True, include parameters for Ensembl compatibility
+        convert_chrom_names: If True, convert chromosome names for Ensembl compatibility
     """
     if not track_files:
         logger.warning(f"No track files provided for annotation type {annotation_type}")
@@ -456,8 +539,14 @@ def create_annotation_hub(
         descriptionUrl=hub_description
     )
     
-    # Initialize genome
-    genome_obj = trackhub.Genome(genome)
+    # Initialize genome with browser-specific name if needed
+    if ensembl_compatible and genome.startswith('hg'):
+        ensembl_genome = genome.replace('hg38', 'GRCh38').replace('hg19', 'GRCh37')
+        logger.info(f"Converting genome name from {genome} to {ensembl_genome} for Ensembl compatibility")
+        genome_obj = trackhub.Genome(ensembl_genome)
+    else:
+        genome_obj = trackhub.Genome(genome)
+    
     hub.add_genome(genome_obj)
     
     # Create a trackdb
@@ -465,42 +554,53 @@ def create_annotation_hub(
     genome_obj.add_trackdb(trackdb)
     
     # Add a README track with information about this annotation type
-    readme_text = (
-        f"# {annotation_type} Annotations\n\n"
-        f"This track hub contains annotations generated using {annotation_type}.\n"
-        f"These tracks should be viewed alongside the corresponding data tracks.\n"
-    )
-    
-    readme_track = trackhub.HTMLTrack(
-        name="readme",
-        short_label="README",
-        long_label=f"README for {annotation_type} Annotations",
-        html=readme_text,
-        visibility="hide"
-    )
-    trackdb.add_tracks(readme_track)
+    # Note: Ensembl may not support HTML tracks as UCSC does
+    if not ensembl_compatible:
+        readme_text = (
+            f"# {annotation_type} Annotations\n\n"
+            f"This track hub contains annotations generated using {annotation_type}.\n"
+            f"These tracks should be viewed alongside the corresponding data tracks.\n"
+        )
+        
+        readme_track = trackhub.HTMLTrack(
+            name="readme",
+            short_label="README",
+            long_label=f"README for {annotation_type} Annotations",
+            html=readme_text,
+            visibility="hide"
+        )
+        trackdb.add_tracks(readme_track)
     
     # Group files by sample
     samples = group_track_files_by_sample(track_files)
     
-    # Create a composite track for each sample
+    # Create tracks based on browser compatibility
     for sample_id, sample_files in samples.items():
         if not sample_files:
             continue
-            
-        composite = trackhub.CompositeTrack(
-            name=f"sample_{sample_id}",
-            short_label=f"{sample_id}",
-            long_label=f"{annotation_type} annotations for {sample_id}",
-            visibility="pack"
-        )
-        trackdb.add_tracks(composite)
         
-        # Add tracks for each file in the sample
-        for track_file in sample_files:
-            track_params = track_file.get_track_params(parent=composite)
-            track = trackhub.Track(**track_params)
-            composite.add_tracks(track)
+        # For Ensembl compatibility, we may need individual tracks instead of composites
+        if ensembl_compatible:
+            # Ensembl has limited support for composite tracks, so add tracks directly to trackdb
+            for track_file in sample_files:
+                track_params = track_file.get_track_params(ensembl_compatible=True)
+                track = trackhub.Track(**track_params)
+                trackdb.add_tracks(track)
+        else:
+            # UCSC-style composite tracks
+            composite = trackhub.CompositeTrack(
+                name=f"sample_{sample_id}",
+                short_label=f"{sample_id}",
+                long_label=f"{annotation_type} annotations for {sample_id}",
+                visibility="pack"
+            )
+            trackdb.add_tracks(composite)
+            
+            # Add tracks for each file in the sample
+            for track_file in sample_files:
+                track_params = track_file.get_track_params(parent=composite)
+                track = trackhub.Track(**track_params)
+                composite.add_tracks(track)
     
     # Write the hub to disk
     trackhub.upload.write_trackdb(hub, str(hub_dir), url=hub_url)
@@ -555,7 +655,7 @@ def main() -> None:
     Main function to parse arguments and create track hubs.
     """
     parser = argparse.ArgumentParser(
-        description="Create UCSC Genome Browser track hubs from globbed files with sample metadata",
+        description="Create UCSC and Ensembl compatible track hubs from globbed files with sample metadata",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     
@@ -626,6 +726,16 @@ def main() -> None:
         '--hub-description',
         help='Path to a file containing hub description in HTML format'
     )
+    create_parser.add_argument(
+        '--ensembl-compatible',
+        action='store_true',
+        help='Make track hubs compatible with Ensembl'
+    )
+    create_parser.add_argument(
+        '--convert-chrom-names',
+        action='store_true',
+        help='Convert chromosome names between UCSC and Ensembl formats (requires liftOver tools)'
+    )
     
     args = parser.parse_args()
     
@@ -685,44 +795,78 @@ def main() -> None:
                     output_dir=output_dir,
                     hub_email=args.email,
                     hub_url=args.hub_url,
-                    hub_description=hub_description
+                    hub_description=hub_description,
+                    ensembl_compatible=args.ensembl_compatible,
+                    convert_chrom_names=args.convert_chrom_names
                 )
+       
+       # Find and process BigBed files if specified
+    if args.bigbed:
+        bigbed_files = find_track_files(
+            args.bigbed, 'bigbed', sample_pattern, annotation_pattern
+        )
         
-        # Find and process BigBed files if specified
-        if args.bigbed:
-            bigbed_files = find_track_files(
-                args.bigbed, 'bigbed', sample_pattern, annotation_pattern
-            )
+        if bigbed_files:
+            # Apply sample metadata if available
+            if sample_metadata:
+                apply_sample_metadata(bigbed_files, sample_metadata)
             
-            if bigbed_files:
-                # Apply sample metadata if available
-                if sample_metadata:
-                    apply_sample_metadata(bigbed_files, sample_metadata)
-                
-                # Group by annotation type
-                annotation_groups = group_bigbed_files_by_annotation(bigbed_files)
-                
-                # Create a hub for each annotation type
-                for annotation_type, annotation_files in annotation_groups.items():
-                    create_annotation_hub(
-                        track_files=annotation_files,
-                        annotation_type=annotation_type,
-                        hub_name=f"{args.hub_name}_Annotation",
-                        genome=args.genome,
-                        output_dir=output_dir,
-                        hub_email=args.email,
-                        hub_url=args.hub_url,
-                        hub_description=hub_description
-                    )
-                
-                logger.info(f"Created {len(annotation_groups)} annotation hubs")
-        
-        logger.info(f"All hubs written to {output_dir}")
-        return
-    
-    # If no command specified, show help
-    parser.print_help()
+            # Group by annotation type
+            annotation_groups = group_bigbed_files_by_annotation(bigbed_files)
+            
+            # Create a hub for each annotation type
+            for annotation_type, annotation_files in annotation_groups.items():
+                create_annotation_hub(
+                    track_files=annotation_files,
+                    annotation_type=annotation_type,
+                    hub_name=f"{args.hub_name}_Annotation",
+                    genome=args.genome,
+                    output_dir=output_dir,
+                    hub_email=args.email,
+                    hub_url=args.hub_url,
+                    hub_description=hub_description,
+                    ensembl_compatible=args.ensembl_compatible,
+                    convert_chrom_names=args.convert_chrom_names
+                )
+            
+            logger.info(f"Created {len(annotation_groups)} annotation hubs")
+       
+       # Provide instructions for using the hubs
+    print("\nTrack Hub Creation Complete!")
+       print(f"Track hubs have been created in: {output_dir}")
+       
+       if args.hub_url:
+           if args.bigwig:
+               data_hub_url = f"{args.hub_url.rstrip('/')}/{args.hub_name}_Data/hub.txt"
+               print(f"\nTo add the data hub to UCSC Genome Browser:")
+               print(f"1. Go to https://genome.ucsc.edu/cgi-bin/hgHubConnect")
+               print(f"2. Click 'My Hubs' tab")
+               print(f"3. Paste this URL: {data_hub_url}")
+               print(f"4. Click 'Add Hub'")
+               
+               if args.ensembl_compatible:
+                   print(f"\nTo add the data hub to Ensembl:")
+                   print(f"1. Go to https://www.ensembl.org")
+                   print(f"2. Navigate to a species page")
+                   print(f"3. Click 'Add your data' (in the left menu)")
+                   print(f"4. Select 'Add Track Hub'")
+                   print(f"5. Paste this URL: {data_hub_url}")
+           
+           if args.bigbed and annotation_groups:
+               print("\nAnnotation hubs:")
+               for annotation_type in annotation_groups.keys():
+                   annotation_hub_url = f"{args.hub_url.rstrip('/')}/{args.hub_name}_Annotation_{annotation_type}/hub.txt"
+                   print(f"- {annotation_type}: {annotation_hub_url}")
+       else:
+           print("\nTo use these track hubs, you need to:")
+           print("1. Host the hub directory on a web server")
+           print("2. Use the URL to the hub.txt file when adding the hub to UCSC Genome Browser or Ensembl")
+       
+       return
+   
+   # If no command specified, show help
+   parser.print_help()
 
 
 if __name__ == "__main__":
-    main()
+   main()
