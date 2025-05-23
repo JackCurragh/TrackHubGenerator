@@ -29,7 +29,7 @@ process GENERATE_TRACKHUB {
     def bigwig_paths = bigwig.collect { "--bigwig '$it'" }.join(' ')
     def bigbed_paths = bigbed.collect { "--bigbed '$it'" }.join(' ')
     """
-    python trackhub_creator.py create \\
+    TrackHubGenerator.py create \\
         --sample-sheet $sample_sheet \\
         $bigwig_paths \\
         $bigbed_paths \\
@@ -42,8 +42,12 @@ process GENERATE_TRACKHUB {
         $args
 
     # Version reporting
-    echo '"${task.process}":' > versions.yml
-    echo ' trackhub_creator: "$(python trackhub_creator.py --version 2>&1 | sed 's/^/    /')"' >> versions.yml
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        TrackHubGenerator: "1.0.0"
+        python: \$(python --version | sed 's/Python //')
+        trackhub: \$(python -c "import trackhub; print(trackhub.__version__)" 2>/dev/null || echo "unknown")
+    END_VERSIONS
     """
 
     stub:

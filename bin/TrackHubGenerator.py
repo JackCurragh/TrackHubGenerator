@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 """
 Create UCSC and Ensembl compatible track hubs from globbed files with sample metadata.
 
