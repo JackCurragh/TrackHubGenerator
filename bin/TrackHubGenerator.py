@@ -433,8 +433,7 @@ def create_data_hub(
         hub_name,
         short_label=hub_name,
         long_label=f"{hub_name} - {track_type.upper()} Tracks",
-        email=hub_email,
-        descriptionUrl=hub_description
+        email=hub_email
     )
     
     # Initialize genome
@@ -536,8 +535,7 @@ def create_annotation_hub(
         specific_hub_name,
         short_label=f"{annotation_type}",
         long_label=f"{hub_name} - {annotation_type} Annotations",
-        email=hub_email,
-        descriptionUrl=hub_description
+        email=hub_email
     )
     
     # Initialize genome with browser-specific name if needed
@@ -833,40 +831,40 @@ def main() -> None:
             logger.info(f"Created {len(annotation_groups)} annotation hubs")
        
        # Provide instructions for using the hubs
-    print("\nTrack Hub Creation Complete!")
-       print(f"Track hubs have been created in: {output_dir}")
+        print("\nTrack Hub Creation Complete!")
+        print(f"Track hubs have been created in: {output_dir}")
        
-       if args.hub_url:
-           if args.bigwig:
-               data_hub_url = f"{args.hub_url.rstrip('/')}/{args.hub_name}_Data/hub.txt"
-               print(f"\nTo add the data hub to UCSC Genome Browser:")
-               print(f"1. Go to https://genome.ucsc.edu/cgi-bin/hgHubConnect")
-               print(f"2. Click 'My Hubs' tab")
-               print(f"3. Paste this URL: {data_hub_url}")
-               print(f"4. Click 'Add Hub'")
+        if args.hub_url:
+            if args.bigwig:
+                data_hub_url = f"{args.hub_url.rstrip('/')}/{args.hub_name}_Data/hub.txt"
+                print(f"\nTo add the data hub to UCSC Genome Browser:")
+                print(f"1. Go to https://genome.ucsc.edu/cgi-bin/hgHubConnect")
+                print(f"2. Click 'My Hubs' tab")
+                print(f"3. Paste this URL: {data_hub_url}")
+                print(f"4. Click 'Add Hub'")
                
-               if args.ensembl_compatible:
-                   print(f"\nTo add the data hub to Ensembl:")
-                   print(f"1. Go to https://www.ensembl.org")
-                   print(f"2. Navigate to a species page")
-                   print(f"3. Click 'Add your data' (in the left menu)")
-                   print(f"4. Select 'Add Track Hub'")
-                   print(f"5. Paste this URL: {data_hub_url}")
+                if args.ensembl_compatible:
+                    print(f"\nTo add the data hub to Ensembl:")
+                    print(f"1. Go to https://www.ensembl.org")
+                    print(f"2. Navigate to a species page")
+                    print(f"3. Click 'Add your data' (in the left menu)")
+                    print(f"4. Select 'Add Track Hub'")
+                    print(f"5. Paste this URL: {data_hub_url}")
            
-           if args.bigbed and annotation_groups:
-               print("\nAnnotation hubs:")
-               for annotation_type in annotation_groups.keys():
-                   annotation_hub_url = f"{args.hub_url.rstrip('/')}/{args.hub_name}_Annotation_{annotation_type}/hub.txt"
-                   print(f"- {annotation_type}: {annotation_hub_url}")
-       else:
-           print("\nTo use these track hubs, you need to:")
-           print("1. Host the hub directory on a web server")
-           print("2. Use the URL to the hub.txt file when adding the hub to UCSC Genome Browser or Ensembl")
+            if args.bigbed and annotation_groups:
+                print("\nAnnotation hubs:")
+                for annotation_type in annotation_groups.keys():
+                    annotation_hub_url = f"{args.hub_url.rstrip('/')}/{args.hub_name}_Annotation_{annotation_type}/hub.txt"
+                    print(f"- {annotation_type}: {annotation_hub_url}")
+        else:
+            print("\nTo use these track hubs, you need to:")
+            print("1. Host the hub directory on a web server")
+            print("2. Use the URL to the hub.txt file when adding the hub to UCSC Genome Browser or Ensembl")
        
-       return
+        return
    
-   # If no command specified, show help
-   parser.print_help()
+    # If no command specified, show help
+    parser.print_help()
 
 
 if __name__ == "__main__":

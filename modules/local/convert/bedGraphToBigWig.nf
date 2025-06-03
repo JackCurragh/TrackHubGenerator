@@ -4,7 +4,7 @@ process CONVERT_BEDGRAPH_TO_BIGWIG {
 
     conda "bioconda::ucsc-bedgraphtobigwig"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/ucsc-bedgraphtobigwig:357--1' :
+        'oras://community.wave.seqera.io/library/ucsc-bedgraphtobigwig:481--6675980cef0e7276' :
         'biocontainers/ucsc-bedgraphtobigwig:357--1' }"
 
     input:

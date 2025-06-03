@@ -1,21 +1,15 @@
-
-
-    // conda "bioconda::package_name=X.Y.Z"
-    // container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-    //     'https://depot.galaxyproject.org/singularity/package_name:X.Y.Z--hash' :
-    //     'biocontainers/package_name:X.Y.Z--hash' }"
-
 process GENERATE_TRACKHUB {
     tag "$hub_name"
     label 'process_low'
 
+    container "community.wave.seqera.io/library/pip_trackhub:b1b9686e5cada428"
+
     input:
-    path(sample_sheet)
-    path bigwig
-    path bigbed
+    path(bigbed)
+    path(bigwig)
     val(hub_name)
     val(genome)
-    path(output_dir)
+    val(output_dir)
     val(sample_regex)
     val(annotation_regex)
     val(email)
@@ -28,16 +22,17 @@ process GENERATE_TRACKHUB {
     def args = task.ext.args ?: ''
     def bigwig_paths = bigwig.collect { "--bigwig '$it'" }.join(' ')
     def bigbed_paths = bigbed.collect { "--bigbed '$it'" }.join(' ')
+    def annotation_regex_param = annotation_regex ? "--annotation-regex '$annotation_regex'" : ''
+    def sample_regex_param = sample_regex ? "--sample-regex '$sample_regex'" : ''
     """
     TrackHubGenerator.py create \\
-        --sample-sheet $sample_sheet \\
         $bigwig_paths \\
         $bigbed_paths \\
         --hub-name "$hub_name" \\
         --genome "$genome" \\
         --output-dir "$output_dir" \\
-        --sample-regex "$sample_regex" \\
-        --annotation-regex "$annotation_regex" \\
+        $sample_regex_param \\
+        $annotation_regex_param \\
         --email "$email" \\
         $args
 
@@ -54,7 +49,9 @@ process GENERATE_TRACKHUB {
     """
     mkdir -p ${output_dir}
     touch ${output_dir}/stub_trackhub.txt
-    echo '"${task.process}":' > versions.yml
-    echo ' trackhub_creator: "stub_version"' >> versions.yml
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        TrackHubGenerator: "stub_version"
+    END_VERSIONS
     """
 }

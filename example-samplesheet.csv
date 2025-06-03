@@ -1,0 +1,7 @@
+Run,FileType,Path
+sample1,bed,/path/to/sample1.bed
+sample1,bigwig,/path/to/sample1.bw
+sample2,bedgraph,/path/to/sample2.bedgraph
+sample2,bigbed,/path/to/sample2.bb
+sample3,bed,/path/to/sample3.bed
+sample3,bigwig,/path/to/sample3.bw

@@ -13,7 +13,8 @@ workflow BEDGRAPH_PROCESSING {
     ch_versions = Channel.empty()
 
     // Convert BEDGRAPH to BigWig
-    ch_converted_bigwig = CONVERT_BEDGRAPH_TO_BIGWIG(ch_bedgraph_files, ch_chrom_sizes)
+    CONVERT_BEDGRAPH_TO_BIGWIG(ch_bedgraph_files, ch_chrom_sizes)
+    ch_converted_bigwig = CONVERT_BEDGRAPH_TO_BIGWIG.out.bigwig
     ch_versions = ch_versions.mix(CONVERT_BEDGRAPH_TO_BIGWIG.out.versions)
 
     emit:

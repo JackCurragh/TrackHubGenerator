@@ -4,7 +4,7 @@ process GET_CHROM_SIZES_FASTA {
 
     conda "bioconda::samtools=1.17"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/samtools:1.17--h00cdaf9_0' :
+        'oras://community.wave.seqera.io/library/samtools:1.21--84c9d77c3901e90b' :
         'biocontainers/samtools:1.17--h00cdaf9_0' }"
 
     input:

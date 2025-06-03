@@ -4,7 +4,7 @@ process GET_CHROM_SIZES_UCSC {
 
     conda "bioconda::ucsc-fetchchromsizes"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/ucsc-fetchchromsizes:357--1' :
+        'oras://community.wave.seqera.io/library/ucsc-fetchchromsizes_curl:c21b845478ecf042' :
         'biocontainers/ucsc-fetchchromsizes' }"
 
     input:

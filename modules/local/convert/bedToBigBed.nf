@@ -4,7 +4,7 @@ process CONVERT_BED_TO_BIGBED {
 
     conda "bioconda::ucsc-bedtobigbed"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/ucsc-bedtobigbed:357--1' :
+        'oras://community.wave.seqera.io/library/ucsc-bedtobigbed:473--d4d499b685c95583' :
         'biocontainers/ucsc-bedtobigbed:357--1' }"
 
     input:
