@@ -1,0 +1,15 @@
+[project]
+name = "trackhubgenerator"
+version = "1.0.0"
+description = "UCSC Track Hub Generator"
+channels = ["conda-forge", "bioconda"]
+platforms = ["osx-arm64", "osx-64", "linux-64"]
+
+[dependencies]
+python = ">=3.8"
+trackhub = "*"
+numpy = "*"
+pandas = "*"
+
+[tasks]
+python = "python"

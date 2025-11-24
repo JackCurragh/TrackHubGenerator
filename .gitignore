@@ -180,3 +180,14 @@ Processed outputs/
 work/
 .nextflow*
 results/
+
+# Test files and directories
+test_data/
+test_output/
+
+# Pixi environment
+.pixi/
+pixi.lock
+
+# Cloned libraries for reference
+trackhub/

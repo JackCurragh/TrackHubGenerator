@@ -487,8 +487,8 @@ def create_data_hub(
                 track = trackhub.Track(**track_params)
                 composite.add_tracks(track)
     
-    # Write the hub to disk
-    trackhub.upload.stage_hub(hub, staging=str(hub_dir))
+    # Write the hub to disk - render() writes all files recursively
+    hub.render(staging=str(hub_dir))
     logger.info(f"{track_type.upper()} hub written to {hub_dir}")
 
     # Generate URL for the hub
@@ -583,8 +583,8 @@ def create_annotation_hub(
                 track = trackhub.Track(**track_params)
                 composite.add_tracks(track)
     
-    # Write the hub to disk
-    trackhub.upload.stage_hub(hub, staging=str(hub_dir))
+    # Write the hub to disk - render() writes all files recursively
+    hub.render(staging=str(hub_dir))
     logger.info(f"Annotation hub for {annotation_type} written to {hub_dir}")
 
     # Generate URL for the hub
@@ -780,42 +780,42 @@ def main() -> None:
                     ensembl_compatible=args.ensembl_compatible,
                     convert_chrom_names=args.convert_chrom_names
                 )
-       
-       # Find and process BigBed files if specified
-    if args.bigbed:
-        bigbed_files = find_track_files(
-            args.bigbed, 'bigbed', sample_pattern, annotation_pattern
-        )
-        
-        if bigbed_files:
-            # Apply sample metadata if available
-            if sample_metadata:
-                apply_sample_metadata(bigbed_files, sample_metadata)
-            
-            # Group by annotation type
-            annotation_groups = group_bigbed_files_by_annotation(bigbed_files)
-            
-            # Create a hub for each annotation type
-            for annotation_type, annotation_files in annotation_groups.items():
-                create_annotation_hub(
-                    track_files=annotation_files,
-                    annotation_type=annotation_type,
-                    hub_name=f"{args.hub_name}_Annotation",
-                    genome=args.genome,
-                    output_dir=output_dir,
-                    hub_email=args.email,
-                    hub_url=args.hub_url,
-                    hub_description=hub_description,
-                    ensembl_compatible=args.ensembl_compatible,
-                    convert_chrom_names=args.convert_chrom_names
-                )
-            
-            logger.info(f"Created {len(annotation_groups)} annotation hubs")
-       
-       # Provide instructions for using the hubs
+
+        # Find and process BigBed files if specified
+        if args.bigbed:
+            bigbed_files = find_track_files(
+                args.bigbed, 'bigbed', sample_pattern, annotation_pattern
+            )
+
+            if bigbed_files:
+                # Apply sample metadata if available
+                if sample_metadata:
+                    apply_sample_metadata(bigbed_files, sample_metadata)
+
+                # Group by annotation type
+                annotation_groups = group_bigbed_files_by_annotation(bigbed_files)
+
+                # Create a hub for each annotation type
+                for annotation_type, annotation_files in annotation_groups.items():
+                    create_annotation_hub(
+                        track_files=annotation_files,
+                        annotation_type=annotation_type,
+                        hub_name=f"{args.hub_name}_Annotation",
+                        genome=args.genome,
+                        output_dir=output_dir,
+                        hub_email=args.email,
+                        hub_url=args.hub_url,
+                        hub_description=hub_description,
+                        ensembl_compatible=args.ensembl_compatible,
+                        convert_chrom_names=args.convert_chrom_names
+                    )
+
+                logger.info(f"Created {len(annotation_groups)} annotation hubs")
+
+        # Provide instructions for using the hubs
         print("\nTrack Hub Creation Complete!")
         print(f"Track hubs have been created in: {output_dir}")
-       
+
         if args.hub_url:
             if args.bigwig:
                 data_hub_url = f"{args.hub_url.rstrip('/')}/{args.hub_name}_Data/hub.txt"
@@ -824,7 +824,7 @@ def main() -> None:
                 print(f"2. Click 'My Hubs' tab")
                 print(f"3. Paste this URL: {data_hub_url}")
                 print(f"4. Click 'Add Hub'")
-               
+
                 if args.ensembl_compatible:
                     print(f"\nTo add the data hub to Ensembl:")
                     print(f"1. Go to https://www.ensembl.org")
@@ -832,7 +832,7 @@ def main() -> None:
                     print(f"3. Click 'Add your data' (in the left menu)")
                     print(f"4. Select 'Add Track Hub'")
                     print(f"5. Paste this URL: {data_hub_url}")
-           
+
             if args.bigbed and annotation_groups:
                 print("\nAnnotation hubs:")
                 for annotation_type in annotation_groups.keys():
@@ -842,7 +842,7 @@ def main() -> None:
             print("\nTo use these track hubs, you need to:")
             print("1. Host the hub directory on a web server")
             print("2. Use the URL to the hub.txt file when adding the hub to UCSC Genome Browser or Ensembl")
-       
+
         return
    
     # If no command specified, show help

@@ -16,7 +16,7 @@ process GENERATE_TRACKHUB {
     val(email)
 
     output:
-    path "trackhub_output/${hub_name}/**"  , emit: trackhub
+    path "trackhub_output/**"              , emit: trackhub
     path "versions.yml"                    , emit: versions
 
     script:
