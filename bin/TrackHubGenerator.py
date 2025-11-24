@@ -179,13 +179,20 @@ class TrackFile:
         # Set default visibility if not specified
         if not self.visibility:
             self.visibility = 'full' if self.track_type == 'bigwig' else 'pack'
-        
+
+        # Convert track type to proper camelCase for trackhub library
+        tracktype_map = {
+            'bigwig': 'bigWig',
+            'bigbed': 'bigBed'
+        }
+        tracktype = tracktype_map.get(self.track_type, self.track_type)
+
         # Base track parameters (compatible with both browsers)
         track_params = {
             'name': track_name,
             'source': self.file_path,
             'visibility': self.visibility,
-            'tracktype': self.track_type,
+            'tracktype': tracktype,
             'short_label': self.short_label,
             'long_label': self.long_label,
             'color': self.color,
@@ -462,9 +469,11 @@ def create_data_hub(
                 trackdb.add_tracks(track)
         else:
             # UCSC-style composite tracks
+            # Convert track type to proper camelCase for trackhub library
+            tracktype_display = 'bigWig' if track_type == 'bigwig' else 'bigBed'
             composite = trackhub.CompositeTrack(
                 name=f"composite_{sample_id}",
-                tracktype=track_type,
+                tracktype=tracktype_display,
                 short_label=f"{sample_id}",
                 long_label=f"Tracks for {sample_id}",
                 visibility="full"
