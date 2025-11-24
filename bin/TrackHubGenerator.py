@@ -482,7 +482,8 @@ def create_data_hub(
             
             # Add tracks for each file in the sample
             for track_file in sample_files:
-                track_params = track_file.get_track_params(parent=composite)
+                # Don't pass parent - composite.add_tracks() will set it automatically
+                track_params = track_file.get_track_params()
                 track = trackhub.Track(**track_params)
                 composite.add_tracks(track)
     
@@ -577,7 +578,8 @@ def create_annotation_hub(
             
             # Add tracks for each file in the sample
             for track_file in sample_files:
-                track_params = track_file.get_track_params(parent=composite)
+                # Don't pass parent - composite.add_tracks() will set it automatically
+                track_params = track_file.get_track_params()
                 track = trackhub.Track(**track_params)
                 composite.add_tracks(track)
     
