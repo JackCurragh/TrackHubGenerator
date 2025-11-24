@@ -1,9 +1,10 @@
 process GENERATE_TRACKHUB {
     tag "$hub_name"
     label 'process_low'
-    publishDir "${params.outdir}/trackhubs", mode: 'copy'
 
     container "community.wave.seqera.io/library/pip_trackhub:b1b9686e5cada428"
+
+    publishDir "${params.outdir}/trackhubs", mode: 'copy'
 
     input:
     path(bigbed)
