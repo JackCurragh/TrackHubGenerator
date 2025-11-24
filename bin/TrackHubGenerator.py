@@ -424,34 +424,26 @@ def create_data_hub(
         
     hub_dir = output_dir / hub_name
     hub_dir.mkdir(exist_ok=True, parents=True)
-    
+
     # Determine track type (all files should be the same type)
     track_type = track_files[0].track_type
-    
-    # Initialize hub
-    hub = trackhub.Hub(
-        hub_name,
-        short_label=hub_name,
-        long_label=f"{hub_name} - {track_type.upper()} Tracks",
-        email=hub_email
-    )
-    
-    # Initialize genome
-    # Ensure genome name is correctly formatted for the browser
+
+    # Handle genome name conversion for Ensembl compatibility
+    genome_name = genome
     if ensembl_compatible and genome.startswith('hg'):
         # Convert UCSC genome names to Ensembl equivalents if needed
         # hg38 -> GRCh38, hg19 -> GRCh37
-        ensembl_genome = genome.replace('hg38', 'GRCh38').replace('hg19', 'GRCh37')
-        logger.info(f"Converting genome name from {genome} to {ensembl_genome} for Ensembl compatibility")
-        genome_obj = trackhub.Genome(ensembl_genome)
-    else:
-        genome_obj = trackhub.Genome(genome)
-    
-    hub.add_genome(genome_obj)
-    
-    # Create a trackdb
-    trackdb = trackhub.TrackDb()
-    genome_obj.add_trackdb(trackdb)
+        genome_name = genome.replace('hg38', 'GRCh38').replace('hg19', 'GRCh37')
+        logger.info(f"Converting genome name from {genome} to {genome_name} for Ensembl compatibility")
+
+    # Initialize hub using the correct API
+    hub, _, _, trackdb = trackhub.default_hub(
+        hub_name=hub_name,
+        short_label=hub_name,
+        long_label=f"{hub_name} - {track_type.upper()} Tracks",
+        genome=genome_name,
+        email=hub_email or "noreply@example.com"
+    )
     
     # Group files by sample
     samples = group_track_files_by_sample(track_files)
@@ -530,28 +522,21 @@ def create_annotation_hub(
     specific_hub_name = f"{hub_name}_{annotation_type}"
     hub_dir = output_dir / specific_hub_name
     hub_dir.mkdir(exist_ok=True, parents=True)
-    
-    # Initialize hub
-    hub = trackhub.Hub(
-        specific_hub_name,
+
+    # Handle genome name conversion for Ensembl compatibility
+    genome_name = genome
+    if ensembl_compatible and genome.startswith('hg'):
+        genome_name = genome.replace('hg38', 'GRCh38').replace('hg19', 'GRCh37')
+        logger.info(f"Converting genome name from {genome} to {genome_name} for Ensembl compatibility")
+
+    # Initialize hub using the correct API
+    hub, _, _, trackdb = trackhub.default_hub(
+        hub_name=specific_hub_name,
         short_label=f"{annotation_type}",
         long_label=f"{hub_name} - {annotation_type} Annotations",
-        email=hub_email
+        genome=genome_name,
+        email=hub_email or "noreply@example.com"
     )
-    
-    # Initialize genome with browser-specific name if needed
-    if ensembl_compatible and genome.startswith('hg'):
-        ensembl_genome = genome.replace('hg38', 'GRCh38').replace('hg19', 'GRCh37')
-        logger.info(f"Converting genome name from {genome} to {ensembl_genome} for Ensembl compatibility")
-        genome_obj = trackhub.Genome(ensembl_genome)
-    else:
-        genome_obj = trackhub.Genome(genome)
-    
-    hub.add_genome(genome_obj)
-    
-    # Create a trackdb
-    trackdb = trackhub.TrackDb()
-    genome_obj.add_trackdb(trackdb)
     
     # Add a README track with information about this annotation type
     # Note: Ensembl may not support HTML tracks as UCSC does
