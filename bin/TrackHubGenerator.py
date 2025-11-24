@@ -687,6 +687,30 @@ def create_unified_hub(
 
     # Write the hub to disk - render() writes all files recursively
     hub.render(staging=str(hub_dir))
+
+    # Copy/symlink track files into the hub genome directory
+    genome_dir = hub_dir / genome_name
+    genome_dir.mkdir(exist_ok=True, parents=True)
+
+    for track_file in track_files:
+        source_path = Path(track_file.file_path)
+        # Use the track name from the track params to ensure consistency
+        track_name = f"{track_file.track_type}_{track_file.basename}"
+
+        # Determine the correct extension
+        if track_file.track_type == 'bigwig':
+            dest_filename = f"{track_name}.bigWig"
+        else:  # bigbed
+            dest_filename = f"{track_name}.bigBed"
+
+        dest_path = genome_dir / dest_filename
+
+        # Create symlink to the original file
+        if dest_path.exists():
+            dest_path.unlink()
+        os.symlink(source_path.absolute(), dest_path)
+        logger.debug(f"Linked {source_path} -> {dest_path}")
+
     logger.info(f"Unified hub written to {hub_dir}")
     logger.info(f"  - {len(bigwig_files)} BigWig tracks")
     logger.info(f"  - {len(bigbed_files)} BigBed tracks")

@@ -21,8 +21,8 @@ process GENERATE_TRACKHUB {
 
     script:
     def args = task.ext.args ?: ''
-    def bigwig_paths = bigwig.collect { "--bigwig '$it'" }.join(' ')
-    def bigbed_paths = bigbed.collect { "--bigbed '$it'" }.join(' ')
+    def bigwig_paths = bigwig ? "--bigwig " + bigwig.collect { "'$it'" }.join(' ') : ''
+    def bigbed_paths = bigbed ? "--bigbed " + bigbed.collect { "'$it'" }.join(' ') : ''
     def annotation_regex_param = annotation_regex ? "--annotation-regex '$annotation_regex'" : ''
     def sample_regex_param = sample_regex ? "--sample-regex '$sample_regex'" : ''
     """
