@@ -487,9 +487,9 @@ def create_data_hub(
                 composite.add_tracks(track)
     
     # Write the hub to disk
-    trackhub.upload.write_trackdb(hub, str(hub_dir), url=hub_url)
+    trackhub.upload.stage_hub(hub, staging=str(hub_dir))
     logger.info(f"{track_type.upper()} hub written to {hub_dir}")
-    
+
     # Generate URL for the hub
     if hub_url:
         hub_txt_url = f"{hub_url.rstrip('/')}/{hub_name}/hub.txt"
@@ -582,9 +582,9 @@ def create_annotation_hub(
                 composite.add_tracks(track)
     
     # Write the hub to disk
-    trackhub.upload.write_trackdb(hub, str(hub_dir), url=hub_url)
+    trackhub.upload.stage_hub(hub, staging=str(hub_dir))
     logger.info(f"Annotation hub for {annotation_type} written to {hub_dir}")
-    
+
     # Generate URL for the hub
     if hub_url:
         hub_txt_url = f"{hub_url.rstrip('/')}/{specific_hub_name}/hub.txt"
