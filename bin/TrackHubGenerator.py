@@ -644,67 +644,53 @@ def create_unified_hub(
     bigwig_files = [f for f in track_files if f.track_type == 'bigwig']
     bigbed_files = [f for f in track_files if f.track_type == 'bigbed']
 
-    # Group files by sample for each track type
-    bigwig_samples = group_track_files_by_sample(bigwig_files) if bigwig_files else {}
-    bigbed_samples = group_track_files_by_sample(bigbed_files) if bigbed_files else {}
+    if ensembl_compatible:
+        # Ensembl has limited support for composite tracks, add all tracks directly
+        for track_file in track_files:
+            track_params = track_file.get_track_params(ensembl_compatible=True)
+            track = trackhub.Track(**track_params)
+            trackdb.add_tracks(track)
+    else:
+        # UCSC-style: Create one composite for each file type containing all files
 
-    # Get all unique sample IDs
-    all_sample_ids = set(bigwig_samples.keys()) | set(bigbed_samples.keys())
+        # BigWig composite containing all bigwig files
+        if bigwig_files:
+            composite_bw = trackhub.CompositeTrack(
+                name="composite_all_bigwig",
+                tracktype='bigWig',
+                short_label="All BigWig Tracks",
+                long_label="All BigWig Tracks",
+                visibility="full"
+            )
+            trackdb.add_tracks(composite_bw)
 
-    # Create a composite track for each sample
-    for sample_id in sorted(all_sample_ids):
-        sample_bigwig_files = bigwig_samples.get(sample_id, [])
-        sample_bigbed_files = bigbed_samples.get(sample_id, [])
-
-        if not sample_bigwig_files and not sample_bigbed_files:
-            continue
-
-        if ensembl_compatible:
-            # Ensembl has limited support for composite tracks, add tracks directly
-            for track_file in sample_bigwig_files + sample_bigbed_files:
-                track_params = track_file.get_track_params(ensembl_compatible=True)
+            for track_file in bigwig_files:
+                track_params = track_file.get_track_params()
                 track = trackhub.Track(**track_params)
-                trackdb.add_tracks(track)
-        else:
-            # UCSC-style: Create separate composite tracks for bigwig and bigbed
-            # BigWig composite
-            if sample_bigwig_files:
-                composite_bw = trackhub.CompositeTrack(
-                    name=f"composite_{sample_id}_bigwig",
-                    tracktype='bigWig',
-                    short_label=f"{sample_id} (bigWig)",
-                    long_label=f"BigWig tracks for {sample_id}",
-                    visibility="full"
-                )
-                trackdb.add_tracks(composite_bw)
+                composite_bw.add_tracks(track)
 
-                for track_file in sample_bigwig_files:
-                    track_params = track_file.get_track_params()
-                    track = trackhub.Track(**track_params)
-                    composite_bw.add_tracks(track)
+        # BigBed composite containing all bigbed files
+        if bigbed_files:
+            composite_bb = trackhub.CompositeTrack(
+                name="composite_all_bigbed",
+                tracktype='bigBed',
+                short_label="All BigBed Tracks",
+                long_label="All BigBed Tracks",
+                visibility="pack"
+            )
+            trackdb.add_tracks(composite_bb)
 
-            # BigBed composite
-            if sample_bigbed_files:
-                composite_bb = trackhub.CompositeTrack(
-                    name=f"composite_{sample_id}_bigbed",
-                    tracktype='bigBed',
-                    short_label=f"{sample_id} (bigBed)",
-                    long_label=f"BigBed tracks for {sample_id}",
-                    visibility="pack"
-                )
-                trackdb.add_tracks(composite_bb)
-
-                for track_file in sample_bigbed_files:
-                    track_params = track_file.get_track_params()
-                    track = trackhub.Track(**track_params)
-                    composite_bb.add_tracks(track)
+            for track_file in bigbed_files:
+                track_params = track_file.get_track_params()
+                track = trackhub.Track(**track_params)
+                composite_bb.add_tracks(track)
 
     # Write the hub to disk - render() writes all files recursively
     hub.render(staging=str(hub_dir))
     logger.info(f"Unified hub written to {hub_dir}")
     logger.info(f"  - {len(bigwig_files)} BigWig tracks")
     logger.info(f"  - {len(bigbed_files)} BigBed tracks")
-    logger.info(f"  - {len(all_sample_ids)} samples")
+    logger.info(f"  - {len(track_files)} total tracks")
 
     # Generate URL for the hub
     if hub_url:
