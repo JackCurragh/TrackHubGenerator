@@ -538,23 +538,7 @@ def create_annotation_hub(
         email=hub_email or "noreply@example.com"
     )
     
-    # Add a README track with information about this annotation type
-    # Note: Ensembl may not support HTML tracks as UCSC does
-    if not ensembl_compatible:
-        readme_text = (
-            f"# {annotation_type} Annotations\n\n"
-            f"This track hub contains annotations generated using {annotation_type}.\n"
-            f"These tracks should be viewed alongside the corresponding data tracks.\n"
-        )
-        
-        readme_track = trackhub.HTMLTrack(
-            name="readme",
-            short_label="README",
-            long_label=f"README for {annotation_type} Annotations",
-            html=readme_text,
-            visibility="hide"
-        )
-        trackdb.add_tracks(readme_track)
+    # Note: trackhub library doesn't support HTML tracks, skip README
     
     # Group files by sample
     samples = group_track_files_by_sample(track_files)
