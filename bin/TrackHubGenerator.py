@@ -158,19 +158,25 @@ class TrackFile:
         # Merge additional parameters
         self.additional_params.update(metadata.additional_params)
     
-    def get_track_params(self, parent=None, ensembl_compatible: bool = False) -> Dict[str, Any]:
+    def get_track_params(self, parent=None, ensembl_compatible: bool = False, hub_prefix: str = None) -> Dict[str, Any]:
         """
         Get track parameters for creating a trackhub Track object.
-        
+
         Args:
             parent: Optional parent track for composite/supertrack organization
             ensembl_compatible: If True, include parameters for Ensembl compatibility
-            
+            hub_prefix: Optional hub name prefix to prepend to track name
+
         Returns:
             Dictionary of track parameters
         """
-        # Generate unique track name
-        track_name = f"{self.track_type}_{self.basename}"
+        # Generate unique track name with optional hub prefix
+        if hub_prefix:
+            # Clean up hub prefix (remove spaces, special chars)
+            clean_prefix = hub_prefix.replace(' ', '_').replace('-', '_')
+            track_name = f"{clean_prefix}_{self.basename}"
+        else:
+            track_name = f"{self.track_type}_{self.basename}"
         
         # Set default color if not specified
         if not self.color:
@@ -647,7 +653,7 @@ def create_unified_hub(
     if ensembl_compatible:
         # Ensembl has limited support for composite tracks, add all tracks directly
         for track_file in track_files:
-            track_params = track_file.get_track_params(ensembl_compatible=True)
+            track_params = track_file.get_track_params(ensembl_compatible=True, hub_prefix=hub_name)
             track = trackhub.Track(**track_params)
             trackdb.add_tracks(track)
     else:
@@ -665,7 +671,7 @@ def create_unified_hub(
             trackdb.add_tracks(composite_bw)
 
             for track_file in bigwig_files:
-                track_params = track_file.get_track_params()
+                track_params = track_file.get_track_params(hub_prefix=hub_name)
                 track = trackhub.Track(**track_params)
                 composite_bw.add_tracks(track)
 
@@ -681,7 +687,7 @@ def create_unified_hub(
             trackdb.add_tracks(composite_bb)
 
             for track_file in bigbed_files:
-                track_params = track_file.get_track_params()
+                track_params = track_file.get_track_params(hub_prefix=hub_name)
                 track = trackhub.Track(**track_params)
                 composite_bb.add_tracks(track)
 
@@ -694,8 +700,9 @@ def create_unified_hub(
 
     for track_file in track_files:
         source_path = Path(track_file.file_path)
-        # Use the track name from the track params to ensure consistency
-        track_name = f"{track_file.track_type}_{track_file.basename}"
+        # Use the same naming scheme as in get_track_params
+        clean_prefix = hub_name.replace(' ', '_').replace('-', '_')
+        track_name = f"{clean_prefix}_{track_file.basename}"
 
         # Determine the correct extension
         if track_file.track_type == 'bigwig':
