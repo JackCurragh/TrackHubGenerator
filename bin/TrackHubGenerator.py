@@ -593,6 +593,125 @@ def create_annotation_hub(
         logger.info(f"Hub URL: {hub_txt_url}")
 
 
+def create_unified_hub(
+    track_files: List[TrackFile],
+    hub_name: str,
+    genome: str,
+    output_dir: Path,
+    hub_email: Optional[str] = None,
+    hub_url: Optional[str] = None,
+    hub_description: Optional[str] = None,
+    ensembl_compatible: bool = False,
+    convert_chrom_names: bool = False
+) -> None:
+    """
+    Create a unified track hub with both BigWig and BigBed tracks.
+
+    Args:
+        track_files: List of TrackFile objects (both bigwig and bigbed)
+        hub_name: Name of the hub
+        genome: Genome assembly (e.g., hg38, mm10)
+        output_dir: Directory to write hub files
+        hub_email: Contact email for the hub
+        hub_url: URL where hub will be hosted (optional)
+        hub_description: HTML description for the hub (optional)
+        ensembl_compatible: If True, create Ensembl-compatible hub
+        convert_chrom_names: If True, convert chromosome names for Ensembl compatibility
+    """
+    if not track_files:
+        logger.warning(f"No track files provided for hub {hub_name}")
+        return
+
+    hub_dir = output_dir / hub_name
+    hub_dir.mkdir(exist_ok=True, parents=True)
+
+    # Handle genome name conversion for Ensembl compatibility
+    genome_name = genome
+    if ensembl_compatible and genome.startswith('hg'):
+        genome_name = genome.replace('hg38', 'GRCh38').replace('hg19', 'GRCh37')
+        logger.info(f"Converting genome name from {genome} to {genome_name} for Ensembl compatibility")
+
+    # Initialize hub using the correct API
+    hub, _, _, trackdb = trackhub.default_hub(
+        hub_name=hub_name,
+        short_label=hub_name,
+        long_label=f"{hub_name} Track Hub",
+        genome=genome_name,
+        email=hub_email or "noreply@example.com"
+    )
+
+    # Separate files by track type
+    bigwig_files = [f for f in track_files if f.track_type == 'bigwig']
+    bigbed_files = [f for f in track_files if f.track_type == 'bigbed']
+
+    # Group files by sample for each track type
+    bigwig_samples = group_track_files_by_sample(bigwig_files) if bigwig_files else {}
+    bigbed_samples = group_track_files_by_sample(bigbed_files) if bigbed_files else {}
+
+    # Get all unique sample IDs
+    all_sample_ids = set(bigwig_samples.keys()) | set(bigbed_samples.keys())
+
+    # Create a composite track for each sample
+    for sample_id in sorted(all_sample_ids):
+        sample_bigwig_files = bigwig_samples.get(sample_id, [])
+        sample_bigbed_files = bigbed_samples.get(sample_id, [])
+
+        if not sample_bigwig_files and not sample_bigbed_files:
+            continue
+
+        if ensembl_compatible:
+            # Ensembl has limited support for composite tracks, add tracks directly
+            for track_file in sample_bigwig_files + sample_bigbed_files:
+                track_params = track_file.get_track_params(ensembl_compatible=True)
+                track = trackhub.Track(**track_params)
+                trackdb.add_tracks(track)
+        else:
+            # UCSC-style: Create separate composite tracks for bigwig and bigbed
+            # BigWig composite
+            if sample_bigwig_files:
+                composite_bw = trackhub.CompositeTrack(
+                    name=f"composite_{sample_id}_bigwig",
+                    tracktype='bigWig',
+                    short_label=f"{sample_id} (bigWig)",
+                    long_label=f"BigWig tracks for {sample_id}",
+                    visibility="full"
+                )
+                trackdb.add_tracks(composite_bw)
+
+                for track_file in sample_bigwig_files:
+                    track_params = track_file.get_track_params()
+                    track = trackhub.Track(**track_params)
+                    composite_bw.add_tracks(track)
+
+            # BigBed composite
+            if sample_bigbed_files:
+                composite_bb = trackhub.CompositeTrack(
+                    name=f"composite_{sample_id}_bigbed",
+                    tracktype='bigBed',
+                    short_label=f"{sample_id} (bigBed)",
+                    long_label=f"BigBed tracks for {sample_id}",
+                    visibility="pack"
+                )
+                trackdb.add_tracks(composite_bb)
+
+                for track_file in sample_bigbed_files:
+                    track_params = track_file.get_track_params()
+                    track = trackhub.Track(**track_params)
+                    composite_bb.add_tracks(track)
+
+    # Write the hub to disk - render() writes all files recursively
+    hub.render(staging=str(hub_dir))
+    logger.info(f"Unified hub written to {hub_dir}")
+    logger.info(f"  - {len(bigwig_files)} BigWig tracks")
+    logger.info(f"  - {len(bigbed_files)} BigBed tracks")
+    logger.info(f"  - {len(all_sample_ids)} samples")
+
+    # Generate URL for the hub
+    if hub_url:
+        hub_txt_url = f"{hub_url.rstrip('/')}/{hub_name}/hub.txt"
+        logger.info(f"Hub URL: {hub_txt_url}")
+
+
 def create_sample_sheet_template(output_file: str) -> None:
     """
     Create a template sample sheet with example rows.
@@ -757,29 +876,20 @@ def main() -> None:
             sample_metadata = parse_sample_sheet(args.sample_sheet)
             logger.info(f"Loaded metadata for {len(sample_metadata)} samples from {args.sample_sheet}")
         
+        # Collect all track files (bigwig and bigbed)
+        all_track_files = []
+
         # Find and process BigWig files if specified
         if args.bigwig:
             bigwig_files = find_track_files(
                 args.bigwig, 'bigwig', sample_pattern, None
             )
-            
+
             if bigwig_files:
                 # Apply sample metadata if available
                 if sample_metadata:
                     apply_sample_metadata(bigwig_files, sample_metadata)
-                
-                # Create data hub
-                create_data_hub(
-                    track_files=bigwig_files,
-                    hub_name=f"{args.hub_name}_Data",
-                    genome=args.genome,
-                    output_dir=output_dir,
-                    hub_email=args.email,
-                    hub_url=args.hub_url,
-                    hub_description=hub_description,
-                    ensembl_compatible=args.ensembl_compatible,
-                    convert_chrom_names=args.convert_chrom_names
-                )
+                all_track_files.extend(bigwig_files)
 
         # Find and process BigBed files if specified
         if args.bigbed:
@@ -791,53 +901,42 @@ def main() -> None:
                 # Apply sample metadata if available
                 if sample_metadata:
                     apply_sample_metadata(bigbed_files, sample_metadata)
+                all_track_files.extend(bigbed_files)
 
-                # Group by annotation type
-                annotation_groups = group_bigbed_files_by_annotation(bigbed_files)
-
-                # Create a hub for each annotation type
-                for annotation_type, annotation_files in annotation_groups.items():
-                    create_annotation_hub(
-                        track_files=annotation_files,
-                        annotation_type=annotation_type,
-                        hub_name=f"{args.hub_name}_Annotation",
-                        genome=args.genome,
-                        output_dir=output_dir,
-                        hub_email=args.email,
-                        hub_url=args.hub_url,
-                        hub_description=hub_description,
-                        ensembl_compatible=args.ensembl_compatible,
-                        convert_chrom_names=args.convert_chrom_names
-                    )
-
-                logger.info(f"Created {len(annotation_groups)} annotation hubs")
+        # Create a single unified hub with all tracks
+        if all_track_files:
+            create_unified_hub(
+                track_files=all_track_files,
+                hub_name=args.hub_name,
+                genome=args.genome,
+                output_dir=output_dir,
+                hub_email=args.email,
+                hub_url=args.hub_url,
+                hub_description=hub_description,
+                ensembl_compatible=args.ensembl_compatible,
+                convert_chrom_names=args.convert_chrom_names
+            )
 
         # Provide instructions for using the hubs
         print("\nTrack Hub Creation Complete!")
         print(f"Track hubs have been created in: {output_dir}")
 
         if args.hub_url:
-            if args.bigwig:
-                data_hub_url = f"{args.hub_url.rstrip('/')}/{args.hub_name}_Data/hub.txt"
-                print(f"\nTo add the data hub to UCSC Genome Browser:")
-                print(f"1. Go to https://genome.ucsc.edu/cgi-bin/hgHubConnect")
-                print(f"2. Click 'My Hubs' tab")
-                print(f"3. Paste this URL: {data_hub_url}")
-                print(f"4. Click 'Add Hub'")
+            hub_txt_url = f"{args.hub_url.rstrip('/')}/{args.hub_name}/hub.txt"
+            print(f"\nHub URL: {hub_txt_url}")
+            print(f"To add to UCSC Genome Browser:")
+            print(f"1. Go to https://genome.ucsc.edu/cgi-bin/hgHubConnect")
+            print(f"2. Click 'My Hubs' tab")
+            print(f"3. Paste the URL above")
+            print(f"4. Click 'Add Hub'")
 
-                if args.ensembl_compatible:
-                    print(f"\nTo add the data hub to Ensembl:")
-                    print(f"1. Go to https://www.ensembl.org")
-                    print(f"2. Navigate to a species page")
-                    print(f"3. Click 'Add your data' (in the left menu)")
-                    print(f"4. Select 'Add Track Hub'")
-                    print(f"5. Paste this URL: {data_hub_url}")
-
-            if args.bigbed and annotation_groups:
-                print("\nAnnotation hubs:")
-                for annotation_type in annotation_groups.keys():
-                    annotation_hub_url = f"{args.hub_url.rstrip('/')}/{args.hub_name}_Annotation_{annotation_type}/hub.txt"
-                    print(f"- {annotation_type}: {annotation_hub_url}")
+            if args.ensembl_compatible:
+                print(f"\nTo add to Ensembl:")
+                print(f"1. Go to https://www.ensembl.org")
+                print(f"2. Navigate to a species page")
+                print(f"3. Click 'Add your data' (in the left menu)")
+                print(f"4. Select 'Add Track Hub'")
+                print(f"5. Paste the URL above")
         else:
             print("\nTo use these track hubs, you need to:")
             print("1. Host the hub directory on a web server")
