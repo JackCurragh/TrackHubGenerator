@@ -1,6 +1,7 @@
 process GENERATE_TRACKHUB {
     tag "$hub_name"
     label 'process_low'
+    publishDir "${params.outdir}/trackhubs", mode: 'copy'
 
     container "community.wave.seqera.io/library/pip_trackhub:b1b9686e5cada428"
 
@@ -9,14 +10,13 @@ process GENERATE_TRACKHUB {
     path(bigwig)
     val(hub_name)
     val(genome)
-    val(output_dir)
     val(sample_regex)
     val(annotation_regex)
     val(email)
 
     output:
-    path "${output_dir}/*"    , emit: trackhub
-    path "versions.yml"       , emit: versions
+    path "trackhub_output/${hub_name}/**"  , emit: trackhub
+    path "versions.yml"                    , emit: versions
 
     script:
     def args = task.ext.args ?: ''
@@ -30,7 +30,7 @@ process GENERATE_TRACKHUB {
         $bigbed_paths \\
         --hub-name "$hub_name" \\
         --genome "$genome" \\
-        --output-dir "$output_dir" \\
+        --output-dir trackhub_output \\
         $sample_regex_param \\
         $annotation_regex_param \\
         --email "$email" \\
@@ -47,8 +47,8 @@ process GENERATE_TRACKHUB {
 
     stub:
     """
-    mkdir -p ${output_dir}
-    touch ${output_dir}/stub_trackhub.txt
+    mkdir -p trackhub_output/${hub_name}
+    touch trackhub_output/${hub_name}/stub_trackhub.txt
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         TrackHubGenerator: "stub_version"

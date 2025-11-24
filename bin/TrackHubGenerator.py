@@ -471,7 +471,8 @@ def create_data_hub(
         else:
             # UCSC-style composite tracks
             composite = trackhub.CompositeTrack(
-                name=f"sample_{sample_id}",
+                name=f"composite_{sample_id}",
+                tracktype=track_type,
                 short_label=f"{sample_id}",
                 long_label=f"Tracks for {sample_id}",
                 visibility="full"
@@ -588,7 +589,8 @@ def create_annotation_hub(
         else:
             # UCSC-style composite tracks
             composite = trackhub.CompositeTrack(
-                name=f"sample_{sample_id}",
+                name=f"composite_{sample_id}",
+                tracktype='bigBed',
                 short_label=f"{sample_id}",
                 long_label=f"{annotation_type} annotations for {sample_id}",
                 visibility="pack"

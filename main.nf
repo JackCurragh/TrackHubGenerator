@@ -80,7 +80,6 @@ workflow {
         [],
         params.hub_name,
         params.genome,
-        params.outdir,
         params.sample_regex,
         params.annotation_regex,
         params.email
