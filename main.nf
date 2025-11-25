@@ -74,10 +74,10 @@ workflow {
     ch_bigwig = ch_bigwig.mix(BEDGRAPH_PROCESSING.out.bigwig)
     ch_versions = ch_versions.mix(BEDGRAPH_PROCESSING.out.versions)
 
-    // Generate track hub
+    // Generate track hub - wait for all processing to complete
     ch_trackhub = GENERATE_TRACKHUB(
         ch_bigbed.map { meta, filepath -> filepath }.collect().ifEmpty([]),
-        [],
+        ch_bigwig.map { meta, filepath -> filepath }.collect().ifEmpty([]),
         params.hub_name,
         params.genome,
         params.sample_regex,
