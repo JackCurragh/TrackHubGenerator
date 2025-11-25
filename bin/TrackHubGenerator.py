@@ -157,6 +157,30 @@ class TrackFile:
         
         # Merge additional parameters
         self.additional_params.update(metadata.additional_params)
+
+    def _sanitize_name(name: str, maxlen: int = 63) -> str:
+        """
+        Return a safe track name:
+        - keep only A-Za-z0-9 and underscores
+        - convert runs of invalid chars to a single underscore
+        - strip leading/trailing underscores
+        - ensure it doesn't start with a digit (prefix with 't_' if so)
+        - truncate to maxlen (default 63 chars)
+        """
+        if not name:
+            return "track"
+        # replace any run of non-alnum/underscore with a single underscore
+        clean = re.sub(r'[^A-Za-z0-9_]+', '_', name)
+        clean = clean.strip('_')
+        if not clean:
+            clean = "track"
+        # if starts with digit, prefix to be safe
+        if clean[0].isdigit():
+            clean = "t_" + clean
+        # truncate, keeping space for potential prefix
+        if len(clean) > maxlen:
+            clean = clean[:maxlen].rstrip('_')
+        return clean
     
     def get_track_params(self, parent=None, ensembl_compatible: bool = False, hub_prefix: str = None) -> Dict[str, Any]:
         """
@@ -172,14 +196,13 @@ class TrackFile:
         """
         # Generate unique track name with optional hub prefix
         if hub_prefix:
-            # Replace any run of non-alphanumeric/underscore with a single underscore
-            clean_prefix = re.sub(r'[^A-Za-z0-9_]+', '_', hub_prefix)
-            # Prevent accidental leading/trailing underscores
-            clean_prefix = clean_prefix.strip('_')
-            track_name = f"{clean_prefix}_{self.basename}"
+            raw_prefix = re.sub(r'[^A-Za-z0-9_]+', '_', hub_prefix).strip('_')
+            raw_name = f"{raw_prefix}_{self.basename}"
         else:
-            track_name = f"{self.track_type}_{self.basename}"
-        
+            raw_name = f"{self.track_type}_{self.basename}"
+
+        # Finally sanitize the entire name to satisfy trackhub's requirements
+        track_name = _sanitize_name(raw_name)
         # Set default color if not specified
         if not self.color:
             self.color = '0,0,100' if self.track_type == 'bigwig' else '0,100,0'
