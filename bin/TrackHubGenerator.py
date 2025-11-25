@@ -40,30 +40,6 @@ COMPATIBLE_TRACK_PARAMS = {
     }
 }
 
-def sanitize_name(name: str, maxlen: int = 63) -> str:
-    """
-    Return a safe track name:
-    - keep only A-Za-z0-9 and underscores
-    - convert runs of invalid chars to a single underscore
-    - strip leading/trailing underscores
-    - ensure it doesn't start with a digit (prefix with 't_' if so)
-    - truncate to maxlen (default 63 chars)
-    """
-    if not name:
-        return "track"
-    # replace any run of non-alnum/underscore with a single underscore
-    clean = re.sub(r'[^A-Za-z0-9_]+', '_', name)
-    clean = clean.strip('_')
-    if not clean:
-        clean = "track"
-    # if starts with digit, prefix to be safe
-    if clean[0].isdigit():
-        clean = "t_" + clean
-    # truncate, keeping space for potential prefix
-    if len(clean) > maxlen:
-        clean = clean[:maxlen].rstrip('_')
-    return clean
-
 
 class SampleMetadata:
     """Represents sample metadata from the sample sheet."""
@@ -181,10 +157,8 @@ class TrackFile:
         
         # Merge additional parameters
         self.additional_params.update(metadata.additional_params)
-
     
-    def get_track_params(self, parent=None, ensembl_compatible: bool = False,
-                         hub_prefix: str = None, genome_dir: Path = None) -> Dict[str, Any]:
+    def get_track_params(self, parent=None, ensembl_compatible: bool = False, hub_prefix: str = None) -> Dict[str, Any]:
         """
         Get track parameters for creating a trackhub Track object.
 
@@ -192,88 +166,76 @@ class TrackFile:
             parent: Optional parent track for composite/supertrack organization
             ensembl_compatible: If True, include parameters for Ensembl compatibility
             hub_prefix: Optional hub name prefix to prepend to track name
-            genome_dir: Optional Path where sanitized symlink should be created
 
         Returns:
             Dictionary of track parameters
         """
         # Generate unique track name with optional hub prefix
         if hub_prefix:
-            raw_prefix = re.sub(r'[^A-Za-z0-9_]+', '_', hub_prefix).strip('_')
-            raw_name = f"{raw_prefix}_{self.basename}"
+            # Clean up hub prefix (remove spaces, special chars)
+            clean_prefix = hub_prefix.replace(' ', '_').replace('-', '_')
+            track_name = f"{clean_prefix}_{self.basename}"
         else:
-            raw_name = f"{self.track_type}_{self.basename}"
-
-        # Sanitize the final track name
-        track_name = sanitize_name(raw_name)
-
+            track_name = f"{self.track_type}_{self.basename}"
+        
         # Set default color if not specified
-        if not getattr(self, 'color', None):
+        if not self.color:
             self.color = '0,0,100' if self.track_type == 'bigwig' else '0,100,0'
-
+        
         # Set default visibility if not specified
-        if not getattr(self, 'visibility', None):
+        if not self.visibility:
             self.visibility = 'full' if self.track_type == 'bigwig' else 'pack'
 
-        # Map to proper camelCase track type
+        # Convert track type to proper camelCase for trackhub library
         tracktype_map = {
             'bigwig': 'bigWig',
             'bigbed': 'bigBed'
         }
         tracktype = tracktype_map.get(self.track_type, self.track_type)
 
-        # Determine source path
-        source_path = Path(self.file_path)
-        if genome_dir:
-            ext = source_path.suffix
-            sanitized_file = genome_dir / f"{track_name}{ext}"
-
-            # Create symlink to original file
-            if sanitized_file.exists():
-                sanitized_file.unlink()
-            os.symlink(source_path.resolve(), sanitized_file)
-            source_path = sanitized_file
-
-        # Base track parameters
+        # Base track parameters (compatible with both browsers)
         track_params = {
             'name': track_name,
-            'source': str(source_path),
+            'source': self.file_path,
             'visibility': self.visibility,
             'tracktype': tracktype,
-            'short_label': getattr(self, 'short_label', track_name),
-            'long_label': getattr(self, 'long_label', track_name),
+            'short_label': self.short_label,
+            'long_label': self.long_label,
             'color': self.color,
-            'priority': getattr(self, 'priority', 0)
+            'priority': self.priority
         }
-
+        
         # Add parent if provided
         if parent:
             track_params['parent'] = parent
-
+        
         # Add track type specific defaults
         if self.track_type == 'bigwig':
             type_defaults = {
                 'autoScale': 'on',
                 'alwaysZero': 'on'
             }
+            # Only add defaults if not overridden in additional_params
             for key, value in type_defaults.items():
-                if not hasattr(self, key) or key not in getattr(self, 'additional_params', {}):
+                if key not in self.additional_params:
                     track_params[key] = value
-
+        
         # Add Ensembl-specific parameters if requested
         if ensembl_compatible:
+            # Add type and format parameters required by Ensembl
             if self.track_type == 'bigwig':
                 track_params['type'] = 'bigWig'
                 track_params['format'] = 'bigWig'
             elif self.track_type == 'bigbed':
                 track_params['type'] = 'bigBed'
                 track_params['format'] = 'bigBed'
-
+        
         # Add any additional parameters
-        for key, value in getattr(self, 'additional_params', {}).items():
+        for key, value in self.additional_params.items():
             track_params[key] = value
-
+        
         return track_params
+
 
 def parse_sample_sheet(file_path: str) -> Dict[str, SampleMetadata]:
     """
