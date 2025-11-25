@@ -172,8 +172,10 @@ class TrackFile:
         """
         # Generate unique track name with optional hub prefix
         if hub_prefix:
-            # Clean up hub prefix (remove spaces, special chars)
-            clean_prefix = hub_prefix.replace(' ', '_').replace('-', '_')
+            # Replace any run of non-alphanumeric/underscore with a single underscore
+            clean_prefix = re.sub(r'[^A-Za-z0-9_]+', '_', hub_prefix)
+            # Prevent accidental leading/trailing underscores
+            clean_prefix = clean_prefix.strip('_')
             track_name = f"{clean_prefix}_{self.basename}"
         else:
             track_name = f"{self.track_type}_{self.basename}"
