@@ -91,33 +91,77 @@ class TrackFile:
         self.file_path: str = file_path
         self.track_type: str = track_type.lower()
         self.filename: str = os.path.basename(file_path)
-        self.basename: str = os.path.splitext(self.filename)[0]
-        
+
+        # Extract the raw basename (remove extension)
+        raw_basename = os.path.splitext(self.filename)[0]
+
+        # Sanitize basename for use in track names (strict mode - alphanumeric and underscore only)
+        # This ensures track names like "sample.sorted.reverse" become "sample_sorted_reverse"
+        self.basename: str = trackhub.helpers.sanitize(raw_basename, strict=True)
+
         # Extract sample ID from filename
         self.sample_id: str = self._extract_sample_id(sample_pattern)
-        
+
         # Extract annotation type for bigbed files
         self.annotation_type: str = ''
         if self.track_type == 'bigbed':
             self.annotation_type = self._extract_annotation_type(annotation_pattern)
-        
+
         # Track display properties will be set from sample metadata
-        self.short_label: str = self.basename
-        self.long_label: str = self.basename
+        # Create human-readable labels by converting underscores to spaces and removing common suffixes
+        self.short_label: str = self._create_readable_label(raw_basename)
+        self.long_label: str = self._create_readable_label(raw_basename)
         self.color: str = ''
         self.visibility: str = ''
         self.priority: str = '1'
         self.additional_params: Dict[str, Any] = {}
     
+    def _create_readable_label(self, raw_basename: str) -> str:
+        """
+        Create a human-readable label from a filename basename.
+
+        Removes common processing suffixes and converts underscores/dots to spaces.
+
+        Args:
+            raw_basename: The unsanitized basename (e.g., "Sample_1.sorted.reverse")
+
+        Returns:
+            A human-readable label (e.g., "Sample 1")
+        """
+        # Common suffixes to remove (in order of removal)
+        common_suffixes = [
+            '.sorted', '.reverse', '.filtered', '.trimmed', '.dedup', '.duplicates',
+            '.merged', '.processed', '.cleaned', '.normalized', '.final',
+            '_sorted', '_reverse', '_filtered', '_trimmed', '_dedup', '_duplicates',
+            '_merged', '_processed', '_cleaned', '_normalized', '_final'
+        ]
+
+        label = raw_basename
+
+        # Remove common processing suffixes
+        for suffix in common_suffixes:
+            if suffix in label.lower():
+                # Case-insensitive removal
+                label = re.sub(re.escape(suffix), '', label, flags=re.IGNORECASE)
+
+        # Replace dots and underscores with spaces
+        label = label.replace('.', ' ').replace('_', ' ')
+
+        # Remove extra whitespace
+        label = ' '.join(label.split())
+
+        return label
+
     def _extract_sample_id(self, pattern: Optional[Pattern] = None) -> str:
         """Extract sample ID from filename using pattern or default method."""
         if pattern:
             match = pattern.search(self.filename)
             if match and 'sample_id' in match.groupdict():
                 return match.group('sample_id')
-        
-        # Default: use the part before the first dot or underscore
-        return self.basename.split('.')[0].split('_')[0]
+
+        # Default: use the sanitized basename up to the first underscore
+        # (basename is already sanitized, so no dots remain)
+        return self.basename.split('_')[0]
     
     def _extract_annotation_type(self, pattern: Optional[Pattern] = None) -> str:
         """Extract annotation type from filename using pattern or default method."""
