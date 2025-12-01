@@ -95,9 +95,12 @@ class TrackFile:
         # Extract the raw basename (remove extension)
         raw_basename = os.path.splitext(self.filename)[0]
 
-        # Sanitize basename for use in track names (strict mode - alphanumeric and underscore only)
+        # Sanitize basename for use in track names
+        # Replace dots with underscores, keep underscores, remove other special chars
         # This ensures track names like "sample.sorted.reverse" become "sample_sorted_reverse"
-        self.basename: str = trackhub.helpers.sanitize(raw_basename, strict=True)
+        self.basename: str = raw_basename.replace('.', '_').replace('-', '_')
+        # Remove any remaining non-alphanumeric characters except underscores
+        self.basename = re.sub(r'[^a-zA-Z0-9_]', '', self.basename)
 
         # Extract sample ID from filename
         self.sample_id: str = self._extract_sample_id(sample_pattern)
@@ -120,29 +123,37 @@ class TrackFile:
         """
         Create a human-readable label from a filename basename.
 
-        Removes common processing suffixes and converts underscores/dots to spaces.
+        Intelligently removes technical processing terms while preserving meaningful biological
+        and directional information (like forward/reverse, unique/multi, etc.).
 
         Args:
-            raw_basename: The unsanitized basename (e.g., "Sample_1.sorted.reverse")
+            raw_basename: The unsanitized basename (e.g., "SRR14890808.multi_no_junction.forward")
 
         Returns:
-            A human-readable label (e.g., "Sample 1")
+            A human-readable label (e.g., "SRR14890808 multi no junction forward")
         """
-        # Common suffixes to remove (in order of removal)
-        common_suffixes = [
-            '.sorted', '.reverse', '.filtered', '.trimmed', '.dedup', '.duplicates',
-            '.merged', '.processed', '.cleaned', '.normalized', '.final',
-            '_sorted', '_reverse', '_filtered', '_trimmed', '_dedup', '_duplicates',
-            '_merged', '_processed', '_cleaned', '_normalized', '_final'
-        ]
-
         label = raw_basename
 
-        # Remove common processing suffixes
-        for suffix in common_suffixes:
+        # Remove technical processing suffixes that don't add semantic value
+        # These are purely technical artifacts of the processing pipeline
+        technical_suffixes = [
+            '.sorted', '.filtered', '.trimmed', '.dedup', '.duplicates',
+            '.cleaned', '.normalized', '.processed', '.final',
+            '_sorted', '_filtered', '_trimmed', '_dedup', '_duplicates',
+            '_cleaned', '_normalized', '_processed', '_final'
+        ]
+
+        for suffix in technical_suffixes:
             if suffix in label.lower():
                 # Case-insensitive removal
                 label = re.sub(re.escape(suffix), '', label, flags=re.IGNORECASE)
+
+        # DO NOT remove these important biological/directional terms:
+        # - forward/reverse (strand direction)
+        # - unique/multi (mapping type)
+        # - merged (combined samples)
+        # - junction/no_junction (splice junction information)
+        # These are kept because they're semantically important!
 
         # Replace dots and underscores with spaces
         label = label.replace('.', ' ').replace('_', ' ')
