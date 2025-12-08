@@ -232,11 +232,11 @@ class TrackFile:
             track_name = f"{clean_prefix}_{self.basename}"
         else:
             track_name = f"{self.track_type}_{self.basename}"
-        
+
         # Set default color if not specified
         if not self.color:
             self.color = '0,0,100' if self.track_type == 'bigwig' else '0,100,0'
-        
+
         # Set default visibility if not specified
         if not self.visibility:
             self.visibility = 'full' if self.track_type == 'bigwig' else 'pack'
@@ -248,14 +248,22 @@ class TrackFile:
         }
         tracktype = tracktype_map.get(self.track_type, self.track_type)
 
+        # Prepend hub name to labels if hub_prefix is provided
+        if hub_prefix:
+            short_label = f"{hub_prefix} - {self.short_label}"
+            long_label = f"{hub_prefix} - {self.long_label}"
+        else:
+            short_label = self.short_label
+            long_label = self.long_label
+
         # Base track parameters (compatible with both browsers)
         track_params = {
             'name': track_name,
             'source': self.file_path,
             'visibility': self.visibility,
             'tracktype': tracktype,
-            'short_label': self.short_label,
-            'long_label': self.long_label,
+            'short_label': short_label,
+            'long_label': long_label,
             'color': self.color,
             'priority': self.priority
         }
