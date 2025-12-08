@@ -248,13 +248,26 @@ class TrackFile:
         }
         tracktype = tracktype_map.get(self.track_type, self.track_type)
 
-        # Prepend hub name to labels if hub_prefix is provided
+        # Handle labels with UCSC character limits
+        # shortLabel: max 17 chars - keep it concise, no hub prefix
+        # longLabel: max 76 chars - add hub prefix here if provided
+
+        short_label = self.short_label
+        if len(short_label) > 17:
+            # Truncate to 17 chars
+            short_label = short_label[:17]
+            logger.warning(f"Short label truncated to 17 chars: '{short_label}' (from '{self.short_label}')")
+
         if hub_prefix:
-            short_label = f"{hub_prefix} - {self.short_label}"
+            # Add hub prefix to long label only
             long_label = f"{hub_prefix} - {self.long_label}"
         else:
-            short_label = self.short_label
             long_label = self.long_label
+
+        if len(long_label) > 76:
+            # Truncate to 76 chars
+            long_label = long_label[:76]
+            logger.warning(f"Long label truncated to 76 chars: '{long_label}'")
 
         # Base track parameters (compatible with both browsers)
         track_params = {
