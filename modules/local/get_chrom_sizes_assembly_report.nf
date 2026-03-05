@@ -19,10 +19,6 @@ process GET_CHROM_SIZES_ASSEMBLY_REPORT {
       --report '${report}' \
       ${gff_arg} \
       --out chrom.sizes
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-      python: \$(python -V 2>&1 | sed 's/Python //')
-    END_VERSIONS
     """
 
     stub:

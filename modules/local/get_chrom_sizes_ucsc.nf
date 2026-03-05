@@ -15,20 +15,10 @@ process GET_CHROM_SIZES_UCSC {
     script:
     """
     fetchChromSizes ${ucsc_genome_db} > ${ucsc_genome_db}.chrom_sizes
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        ucsc-fetchchromsizes: \$(fetchChromSizes 2>&1 | head -n1 | sed 's/^fetchChromSizes v//' || echo "unknown")
-    END_VERSIONS
     """
 
     stub:
     """
     touch ${ucsc_genome_db}.chrom_sizes
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        ucsc-fetchchromsizes: \$(fetchChromSizes 2>&1 | head -n1 | sed 's/^fetchChromSizes v//' || echo "unknown")
-    END_VERSIONS
     """
 }

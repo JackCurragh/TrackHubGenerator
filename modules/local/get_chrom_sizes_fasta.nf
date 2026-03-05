@@ -16,20 +16,10 @@ process GET_CHROM_SIZES_FASTA {
     """
     samtools faidx ${fasta} 
     cut -f1,2 ${fasta}.fai > chrom.sizes
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        samtools: \$(echo \$(samtools --version 2>&1) | sed 's/^.*samtools //; s/Using.*\$//')
-    END_VERSIONS
     """
 
     stub:
     """
     touch chrom.sizes
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        samtools: \$(echo \$(samtools --version 2>&1) | sed 's/^.*samtools //; s/Using.*\$//')
-    END_VERSIONS
     """
 }
