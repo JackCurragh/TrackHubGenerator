@@ -10,7 +10,6 @@ process GET_CHROM_SIZES_ASSEMBLY_REPORT {
 
     output:
     path("chrom.sizes") , emit: chrom_sizes
-    path "versions.yml"  , emit: versions
 
     script:
     def gff_arg = (gff_hint && gff_hint.toString().trim()) ? "--gff '${gff_hint}'" : ''

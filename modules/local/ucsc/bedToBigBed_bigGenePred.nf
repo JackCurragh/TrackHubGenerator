@@ -9,7 +9,6 @@ process UCSC_BED_TO_BIGBED_BIGGENEPRED {
 
     output:
     tuple val(meta), path("*.bb"), emit: bigbed
-    path "versions.yml"           , emit: versions
 
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
@@ -18,19 +17,12 @@ process UCSC_BED_TO_BIGBED_BIGGENEPRED {
     sort -k1,1 -k2,2n ${bed} > ${bedSorted}
     bedToBigBed -type=bed12+8 -as=${as_file} ${bedSorted} ${chrom_sizes} ${prefix}.bb
 
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        bedtobigbed: \$(bedToBigBed 2>&1 | head -n1 | sed 's/^bedToBigBed v//')
-    END_VERSIONS
     """
 
     stub:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
     touch ${prefix}.bb
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        bedtobigbed: "stub"
-    END_VERSIONS
+
     """
 }

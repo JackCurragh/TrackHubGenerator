@@ -19,7 +19,6 @@ process GENERATE_TRACKHUB {
 
     output:
     path "trackhub_output/**"              , emit: trackhub
-    path "versions.yml"                    , emit: versions
 
     script:
     def args = task.ext.args ?: ''

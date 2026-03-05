@@ -16,7 +16,6 @@ process AGGREGATE_TRACKHUB {
 
     output:
     path "${aggregate_name}/**", emit: hub
-    path "versions.yml"      , emit: versions
 
     script:
     """

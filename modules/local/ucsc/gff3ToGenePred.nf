@@ -9,7 +9,6 @@ process UCSC_GFF3_TO_GENEPRED {
 
     output:
     tuple val(meta), path("*.genePred"), emit: genepred
-    path "versions.yml"                 , emit: versions
 
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
@@ -22,20 +21,11 @@ process UCSC_GFF3_TO_GENEPRED {
     fi
 
     gff3ToGenePred -useName -warnAndContinue ${IN} ${prefix}.genePred
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        gff3togenepred: \$(gff3ToGenePred 2>&1 | head -n1 | sed 's/^gff3ToGenePred v//')
-    END_VERSIONS
     """
 
     stub:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
     touch ${prefix}.genePred
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        gff3togenepred: "stub"
-    END_VERSIONS
     """
 }

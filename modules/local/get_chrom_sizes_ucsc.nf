@@ -10,7 +10,6 @@ process GET_CHROM_SIZES_UCSC {
 
     output:
     path("*.chrom_sizes"), emit: chrom_sizes
-    path "versions.yml"  , emit: versions
 
     script:
     """

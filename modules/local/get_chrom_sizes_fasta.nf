@@ -10,7 +10,6 @@ process GET_CHROM_SIZES_FASTA {
 
     output:
     path("chrom.sizes")         , emit: chrom_sizes
-    path "versions.yml"         , emit: versions
 
     script:
     """
