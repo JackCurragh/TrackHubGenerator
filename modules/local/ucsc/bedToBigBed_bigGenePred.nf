@@ -5,9 +5,7 @@ process UCSC_BED_TO_BIGBED_BIGGENEPRED {
     container "${ params.container_ucsc_bedtobigbed ?: 'biocontainers/ucsc-bedtobigbed:357--1' }"
 
     input:
-    tuple val(meta), path(bed)
-    path chrom_sizes
-    path as_file
+    tuple val(meta), path(bed), path(chrom_sizes), path(as_file)
 
     output:
     tuple val(meta), path("*.bb"), emit: bigbed

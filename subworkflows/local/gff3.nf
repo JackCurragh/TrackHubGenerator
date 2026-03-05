@@ -37,12 +37,12 @@ workflow GFF3_PROCESSING {
     ch_sizes = ch_chrom_sizes
     ch_as = Channel.fromPath("${projectDir}/assets/bigGenePred.as")
 
-    ch_join = ch_bed.cross(ch_sizes).cross(ch_as).map { tuple1 ->
-        def t1 = tuple1[0]      // [ [meta, bed], sizes ]
-        def meta_bed = t1[0]    // [meta, bed]
-        def sizes = t1[1]
-        def asf = tuple1[1]
-        [ meta_bed[0], meta_bed[1], sizes, asf ]
+    ch_join = ch_bed.cross(ch_sizes).cross(ch_as).map { t ->
+        def meta = t[0][0][0]
+        def bed  = t[0][0][1]
+        def sizes= t[0][1]
+        def asf  = t[1]
+        [ meta, bed, sizes, asf ]
     }
 
     UCSC_BED_TO_BIGBED_BIGGENEPRED(ch_join)
