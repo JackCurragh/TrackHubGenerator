@@ -13,14 +13,14 @@ process UCSC_GFF3_TO_GENEPRED {
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    IN=${gff3}
+    IN="${gff3}"
     if [[ "${gff3}" == *.gz ]]; then
         echo "Decompressing ${gff3} -> ${prefix}.gff3" >&2
-        gunzip -c ${gff3} > ${prefix}.gff3
-        IN=${prefix}.gff3
+        gunzip -c "${gff3}" > "${prefix}.gff3"
+        IN="${prefix}.gff3"
     fi
 
-    gff3ToGenePred -useName -warnAndContinue $IN ${prefix}.genePred
+    gff3ToGenePred -useName -warnAndContinue "\$IN" "${prefix}.genePred"
     """
 
     stub:
