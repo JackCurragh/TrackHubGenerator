@@ -20,9 +20,6 @@ include { AGGREGATE_TRACKHUB } from './modules/local/aggregate_trackhubs.nf'
 workflow {
     // Validate inputs
 
-    // Initialize version tracking
-    ch_versions = Channel.empty()
-
     // Input channels
     ch_samplesheet = Channel.fromPath(params.input)
         .splitCsv(header: true)
@@ -67,15 +64,12 @@ workflow {
             .ifEmpty('')
         GET_CHROM_SIZES_ASSEMBLY_REPORT(ch_report, ch_gff_hint)
         ch_chrom_sizes = GET_CHROM_SIZES_ASSEMBLY_REPORT.out.chrom_sizes.first()
-        ch_versions = ch_versions.mix(GET_CHROM_SIZES_ASSEMBLY_REPORT.out.versions)
     } else if (params.genome) {
         GET_CHROM_SIZES_UCSC(params.genome)
         ch_chrom_sizes = GET_CHROM_SIZES_UCSC.out.chrom_sizes.first()
-        ch_versions = ch_versions.mix(GET_CHROM_SIZES_UCSC.out.versions)
     } else if (params.genome_fasta) {
         GET_CHROM_SIZES_FASTA(params.genome_fasta)
         ch_chrom_sizes = GET_CHROM_SIZES_FASTA.out.chrom_sizes.first()
-        ch_versions = ch_versions.mix(GET_CHROM_SIZES_FASTA.out.versions)
     } else {
         error "No chrom sizes provided. Specify one of: --chrom_sizes, --genome_fasta, or --genome."
     }
@@ -84,18 +78,15 @@ workflow {
     // Process BED12 files
     BED12_PROCESSING(ch_bed, ch_chrom_sizes)
     ch_bigbed = ch_bigbed.mix(BED12_PROCESSING.out.bigbed)
-    ch_versions = ch_versions.mix(BED12_PROCESSING.out.versions)
 
     // Process BEDGRAPH files
     BEDGRAPH_PROCESSING(ch_bedgraph, ch_chrom_sizes)
     ch_bigwig = ch_bigwig.mix(BEDGRAPH_PROCESSING.out.bigwig)
-    ch_versions = ch_versions.mix(BEDGRAPH_PROCESSING.out.versions)
 
     // Process GFF3 annotation files (CAT/Ensembl)
     if (ch_gff3) {
         GFF3_PROCESSING(ch_gff3, ch_chrom_sizes)
         ch_bigbed = ch_bigbed.mix(GFF3_PROCESSING.out.bigbed)
-        ch_versions = ch_versions.mix(GFF3_PROCESSING.out.versions)
     }
 
     // Generate track hub - wait for all processing to complete
@@ -108,7 +99,6 @@ workflow {
         params.annotation_regex,
         params.email
     )
-    ch_versions = ch_versions.mix(GENERATE_TRACKHUB.out.versions)
 
     // Optionally aggregate multiple hubs using a JSON manifest of entries
     // Manifest format: [ {"genome": "GCA_...", "trackdb": "/abs/path/to/hub/trackDb.txt"}, ... ]
@@ -122,7 +112,6 @@ workflow {
             params.aggregate_short_label ?: params.aggregate_name,
             params.aggregate_long_label ?: "${params.aggregate_name} aggregated hub"
         )
-        ch_versions = ch_versions.mix(AGGREGATE_TRACKHUB.out.versions)
     }
 
     // // Move to FTP if specified
