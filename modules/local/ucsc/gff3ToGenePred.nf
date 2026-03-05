@@ -2,7 +2,7 @@ process UCSC_GFF3_TO_GENEPRED {
     tag "$meta.id"
     label 'process_low'
 
-    container "biocontainers/ucsc-gff3togenepred:377--h2a80c09_2"
+    container "biocontainers/ucsc-gff3togenepred:357--1"
 
     input:
     tuple val(meta), path(gff3)

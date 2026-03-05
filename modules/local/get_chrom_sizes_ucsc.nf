@@ -3,7 +3,7 @@ process GET_CHROM_SIZES_UCSC {
     label 'process_low'
 
     conda "bioconda::ucsc-fetchchromsizes"
-    container 'biocontainers/ucsc-fetchchromsizes'
+    container 'biocontainers/ucsc-fetchchromsizes:357--1'
 
     input:
     val(ucsc_genome_db) // eg "hg38"

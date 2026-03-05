@@ -3,7 +3,7 @@ process GET_CHROM_SIZES_FASTA {
     label 'process_low'
 
     conda "bioconda::samtools=1.17"
-    container 'biocontainers/samtools:1.17--h00cdaf9_0'
+    container 'biocontainers/samtools:0.1.19--h94a8ba4_5'
 
     input:
     path fasta
