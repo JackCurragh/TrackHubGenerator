@@ -25,7 +25,7 @@ process UCSC_GFF3_TO_GENEPRED {
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        gff3togenepred: $(gff3ToGenePred 2>&1 | head -n1 | sed 's/^gff3ToGenePred v//')
+        gff3togenepred: \$(gff3ToGenePred 2>&1 | head -n1 | sed 's/^gff3ToGenePred v//')
     END_VERSIONS
     """
 

@@ -59,12 +59,13 @@ workflow {
     if (params.chrom_sizes) {
         ch_chrom_sizes = Channel.fromPath(params.chrom_sizes).first()
     } else if (params.assembly_report) {
-        def gff_hint = ch_samplesheet 
+        def ch_report = Channel.value(file(params.assembly_report))
+        def ch_gff_hint = ch_samplesheet
             .filter { meta, ft, p -> ft == 'gff3' }
             .map { meta, ft, p -> p }
             .first()
             .ifEmpty('')
-        GET_CHROM_SIZES_ASSEMBLY_REPORT(params.assembly_report, gff_hint)
+        GET_CHROM_SIZES_ASSEMBLY_REPORT(ch_report, ch_gff_hint)
         ch_chrom_sizes = GET_CHROM_SIZES_ASSEMBLY_REPORT.out.chrom_sizes.first()
         ch_versions = ch_versions.mix(GET_CHROM_SIZES_ASSEMBLY_REPORT.out.versions)
     } else if (params.genome) {

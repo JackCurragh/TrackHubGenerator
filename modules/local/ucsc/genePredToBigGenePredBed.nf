@@ -18,7 +18,7 @@ process UCSC_GENEPRED_TO_BIGGENEPRED_BED {
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        genepredtobiggenepred: $(genePredToBigGenePred 2>&1 | head -n1 | sed 's/^genePredToBigGenePred v//')
+        genepredtobiggenepred: \$(genePredToBigGenePred 2>&1 | head -n1 | sed 's/^genePredToBigGenePred v//')
     END_VERSIONS
     """
 
@@ -32,4 +32,3 @@ process UCSC_GENEPRED_TO_BIGGENEPRED_BED {
     END_VERSIONS
     """
 }
-

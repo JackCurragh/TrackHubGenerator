@@ -22,7 +22,7 @@ process UCSC_BED_TO_BIGBED_BIGGENEPRED {
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        bedtobigbed: $(bedToBigBed 2>&1 | head -n1 | sed 's/^bedToBigBed v//')
+        bedtobigbed: \$(bedToBigBed 2>&1 | head -n1 | sed 's/^bedToBigBed v//')
     END_VERSIONS
     """
 
@@ -36,4 +36,3 @@ process UCSC_BED_TO_BIGBED_BIGGENEPRED {
     END_VERSIONS
     """
 }
-
