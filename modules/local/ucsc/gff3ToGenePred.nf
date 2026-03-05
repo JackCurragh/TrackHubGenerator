@@ -21,7 +21,8 @@ process UCSC_GFF3_TO_GENEPRED {
     fi
 
     # Strip noisy attribute to reduce warnings, then convert
-    cat "\$IN" | awk -F'\t' 'BEGIN{OFS="\t"} /^#/ {print; next} { sub(/;AdditionalSources=[^;]*/, "", $9); print }' > "${prefix}.sanitized.gff3"
+    # Note: escape \$ to avoid Groovy/GString interpolation inside the Nextflow script block
+    cat "\$IN" | awk -F'\t' 'BEGIN{OFS="\t"} /^#/ {print; next} { sub(/;AdditionalSources=[^;]*/, "", \$9); print }' > "${prefix}.sanitized.gff3"
     gff3ToGenePred -useName -warnAndContinue "${prefix}.sanitized.gff3" "${prefix}.genePred"
     """
 
