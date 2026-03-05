@@ -91,8 +91,8 @@ workflow {
 
     // Generate track hub - wait for all processing to complete
     ch_trackhub = GENERATE_TRACKHUB(
-        ch_bigbed.map { meta, filepath -> filepath }.collect().ifEmpty([]),
-        ch_bigwig.map { meta, filepath -> filepath }.collect().ifEmpty([]),
+        ch_bigbed.map { meta, filepath -> filepath }.collect().ifEmpty([]).collect(),
+        ch_bigwig.map { meta, filepath -> filepath }.collect().ifEmpty([]).collect(),
         params.hub_name,
         params.genome,
         params.sample_regex,
