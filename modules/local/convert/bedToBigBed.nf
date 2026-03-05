@@ -2,10 +2,7 @@ process CONVERT_BED_TO_BIGBED {
     tag "$meta.id"
     label 'process_low'
 
-    conda "bioconda::ucsc-bedtobigbed"
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'oras://community.wave.seqera.io/library/ucsc-bedtobigbed:473--d4d499b685c95583' :
-        'biocontainers/ucsc-bedtobigbed:357--1' }"
+    container "docker://quay.io/biocontainers/ucsc-bedtobigbed:357--1"
 
     input:
     tuple val(meta), path(bed)

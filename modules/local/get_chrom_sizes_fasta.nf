@@ -2,8 +2,7 @@ process GET_CHROM_SIZES_FASTA {
     tag "$fasta.baseName"
     label 'process_low'
 
-    conda "bioconda::samtools=1.17"
-    container 'biocontainers/samtools:0.1.19--h94a8ba4_5'
+    container 'docker://quay.io/biocontainers/samtools:1.17--h00cdaf9_0'
 
     input:
     path fasta

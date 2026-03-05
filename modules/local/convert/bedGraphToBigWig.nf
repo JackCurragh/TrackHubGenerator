@@ -2,10 +2,7 @@ process CONVERT_BEDGRAPH_TO_BIGWIG {
     tag "$meta.id"
     label 'process_low'
 
-    conda "bioconda::ucsc-bedgraphtobigwig"
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'oras://community.wave.seqera.io/library/ucsc-bedgraphtobigwig:481--6675980cef0e7276' :
-        'biocontainers/ucsc-bedgraphtobigwig:357--1' }"
+    container "docker://quay.io/biocontainers/ucsc-bedgraphtobigwig:357--1"
 
     input:
     tuple val(meta), path(bedgraph)
