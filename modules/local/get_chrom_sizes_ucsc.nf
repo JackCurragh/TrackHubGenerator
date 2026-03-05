@@ -3,9 +3,7 @@ process GET_CHROM_SIZES_UCSC {
     label 'process_low'
 
     conda "bioconda::ucsc-fetchchromsizes"
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'oras://community.wave.seqera.io/library/ucsc-fetchchromsizes_curl:c21b845478ecf042' :
-        'biocontainers/ucsc-fetchchromsizes' }"
+    container 'biocontainers/ucsc-fetchchromsizes'
 
     input:
     val(ucsc_genome_db) // eg "hg38"

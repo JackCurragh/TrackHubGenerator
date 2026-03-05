@@ -2,7 +2,7 @@ process UCSC_BED_TO_BIGBED_BIGGENEPRED {
     tag "$meta.id"
     label 'process_low'
 
-    container "${ params.container_ucsc_bedtobigbed ?: 'biocontainers/ucsc-bedtobigbed:357--1' }"
+    container "biocontainers/ucsc-bedtobigbed:357--1"
 
     input:
     tuple val(meta), path(bed), path(chrom_sizes), path(as_file)
