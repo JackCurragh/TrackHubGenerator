@@ -33,13 +33,17 @@ workflow GFF3_PROCESSING {
     ch_bed = UCSC_GENEPRED_TO_BIGGENEPRED_BED.out.biggenepred_bed
     ch_versions = ch_versions.mix(UCSC_GENEPRED_TO_BIGGENEPRED_BED.out.versions)
 
-    // Broadcast constants: chrom.sizes and AS file
+    // Broadcast constants: chrom.sizes and AS file (Cartesian join)
     ch_sizes = ch_chrom_sizes
     ch_as = Channel.fromPath("${projectDir}/assets/bigGenePred.as")
 
-    ch_join = ch_bed.map{ meta, p -> [meta, p] }
-        .combine(ch_sizes) { a, sizes -> [a[0], a[1], sizes] }
-        .combine(ch_as)   { b, asf   -> [b[0], b[1], b[2], asf] }
+    ch_join = ch_bed.cross(ch_sizes).cross(ch_as).map { tuple1 ->
+        def t1 = tuple1[0]      // [ [meta, bed], sizes ]
+        def meta_bed = t1[0]    // [meta, bed]
+        def sizes = t1[1]
+        def asf = tuple1[1]
+        [ meta_bed[0], meta_bed[1], sizes, asf ]
+    }
 
     UCSC_BED_TO_BIGBED_BIGGENEPRED(ch_join)
     ch_bigbed = UCSC_BED_TO_BIGBED_BIGGENEPRED.out.bigbed
