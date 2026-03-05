@@ -7,6 +7,7 @@ A Nextflow pipeline for converting BED12/Bedgraph files to  track hubs, original
 This pipeline automatically:
 - Converts BED12 files to BigBed format (for translated regions)
 - Converts Bedgraph files to BigWig format (for ribosome profiling signal)
+- Converts GFF3 (CAT/Ensembl) annotations to bigBed (bigGenePred) using containers
 - Creates organized trackhub directories for Ensembl FTP hosting
 - Validates input data against formatting requirements
 - Generates UCSC-compatible track hubs with proper metadata
@@ -249,3 +250,20 @@ ensembl_ftp/
     │   └── mm10/
     └── phase1/
 ```
+### GFF3 annotations (CAT/Ensembl)
+
+You can provide `.gff3` files via the samplesheet (`FileType=gff3`). The pipeline converts them to bigBed using the bigGenePred schema with UCSC UCSC tools inside containers.
+
+Input CSV rows:
+
+```
+Run,FileType,Path
+asm1,gff3,/path/to/cat.annotation.gff3
+asm1,gff3,/path/to/ensembl.annotation.gff3
+```
+
+Notes:
+- Uses containerized UCSC tools (override images via params in `nextflow.config`).
+- bigGenePred AutoSql is bundled in `assets/bigGenePred.as`.
+- Chrom sizes come from `--genome` or `--genome_fasta` like other inputs.
+ 

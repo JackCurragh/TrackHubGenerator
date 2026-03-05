@@ -5,3 +5,5 @@ sample2,bedgraph,/path/to/sample2.bedgraph
 sample2,bigbed,/path/to/sample2.bb
 sample3,bed,/path/to/sample3.bed
 sample3,bigwig,/path/to/sample3.bw
+asm1,gff3,/path/to/cat.annotation.gff3
+asm1,gff3,/path/to/ensembl.annotation.gff3

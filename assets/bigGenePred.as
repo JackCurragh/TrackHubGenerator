@@ -1,0 +1,25 @@
+table bigGenePred
+"bigGenePred gene models in BED format with additional fields"
+    (
+    string  chrom;        "Reference sequence chromosome or scaffold"
+    uint    chromStart;   "Start position in chromosome"
+    uint    chromEnd;     "End position in chromosome"
+    string  name;         "Name of gene"
+    uint    score;        "Score"
+    char[1] strand;       "+ or - for strand"
+    uint    thickStart;   "Coding region start"
+    uint    thickEnd;     "Coding region end"
+    uint    reserved;     "RGB value"
+    int     blockCount;   "Number of exons"
+    int[blockCount] blockSizes; "Comma-separated list of exon sizes"
+    int[blockCount] chromStarts; "Start positions relative to chromStart"
+    string  name2;        "Alternative name"
+    string  cdsStartStat; "CDS start status"
+    string  cdsEndStat;   "CDS end status"
+    int     exonFrames[blockCount]; "Exon frame offsets"
+    string  type;         "Transcript type"
+    string  geneName;     "Gene name"
+    string  geneName2;    "Alternative gene name"
+    string  geneType;     "Gene type"
+    )
+
