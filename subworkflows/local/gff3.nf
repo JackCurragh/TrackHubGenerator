@@ -10,7 +10,6 @@ workflow GFF3_PROCESSING {
     ch_chrom_sizes  // channel: [ path(chrom_sizes) ]
 
     main:
-    ch_versions = Channel.empty()
 
     // Normalize inputs to (meta, path)
     ch_norm = ch_gff3_files.map { item ->
@@ -27,11 +26,9 @@ workflow GFF3_PROCESSING {
 
     UCSC_GFF3_TO_GENEPRED(ch_norm)
     ch_gp = UCSC_GFF3_TO_GENEPRED.out.genepred
-    ch_versions = ch_versions.mix(UCSC_GFF3_TO_GENEPRED.out.versions)
 
     UCSC_GENEPRED_TO_BIGGENEPRED_BED(ch_gp)
     ch_bed = UCSC_GENEPRED_TO_BIGGENEPRED_BED.out.biggenepred_bed
-    ch_versions = ch_versions.mix(UCSC_GENEPRED_TO_BIGGENEPRED_BED.out.versions)
 
     // Broadcast constants: chrom.sizes and AS file (Cartesian join)
     ch_sizes = ch_chrom_sizes
@@ -47,9 +44,7 @@ workflow GFF3_PROCESSING {
 
     UCSC_BED_TO_BIGBED_BIGGENEPRED(ch_join)
     ch_bigbed = UCSC_BED_TO_BIGBED_BIGGENEPRED.out.bigbed
-    ch_versions = ch_versions.mix(UCSC_BED_TO_BIGBED_BIGGENEPRED.out.versions)
 
     emit:
     bigbed   = ch_bigbed
-    versions = ch_versions
 }

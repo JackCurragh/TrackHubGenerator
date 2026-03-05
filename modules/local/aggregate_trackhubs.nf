@@ -52,7 +52,6 @@ with open(os.path.join(agg_dir, 'genomes.txt'), 'w') as fh:
         fh.write(f"genome {genome}\n")
         fh.write(f"trackDb {rel}\n\n")
 
-open('versions.yml','w').write('"AGGREGATE_TRACKHUB":\n  python: "' + sys.version.split()[0] + '"\n')
 PY
     """
 
