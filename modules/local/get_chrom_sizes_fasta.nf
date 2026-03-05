@@ -5,10 +5,10 @@ process GET_CHROM_SIZES_FASTA {
     container 'docker://quay.io/biocontainers/samtools:1.17--h00cdaf9_0'
 
     input:
-    path fasta
+    tuple val(genome), path(fasta)
 
     output:
-    path("chrom.sizes")         , emit: chrom_sizes
+    tuple val(genome), path("chrom.sizes") , emit: chrom_sizes
 
     script:
     """

@@ -5,8 +5,7 @@ process CONVERT_BED_TO_BIGBED {
     container "docker://quay.io/biocontainers/ucsc-bedtobigbed:357--1"
 
     input:
-    tuple val(meta), path(bed)
-    path chrom_sizes
+    tuple val(meta), path(bed), path(chrom_sizes)
 
     output:
     tuple val(meta), path("*.bb"), emit: bigbed

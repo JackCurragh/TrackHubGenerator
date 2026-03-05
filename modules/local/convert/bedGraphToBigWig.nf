@@ -5,8 +5,7 @@ process CONVERT_BEDGRAPH_TO_BIGWIG {
     container "docker://quay.io/biocontainers/ucsc-bedgraphtobigwig:357--1"
 
     input:
-    tuple val(meta), path(bedgraph)
-    path chrom_sizes
+    tuple val(meta), path(bedgraph), path(chrom_sizes)
 
     output:
     tuple val(meta), path("*.bw"), emit: bigwig

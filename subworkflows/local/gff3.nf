@@ -6,41 +6,28 @@ include { UCSC_BED_TO_BIGBED_BIGGENEPRED } from '../../modules/local/ucsc/bedToB
 
 workflow GFF3_PROCESSING {
     take:
-    ch_gff3_files   // channel: [ val(meta), path(gff3) ] or [ path(gff3) ]
-    ch_chrom_sizes  // channel: [ path(chrom_sizes) ]
+    ch_gff3_files   // channel: [ val(meta), path(gff3) ]
+    ch_chrom_sizes  // channel: [ val(genome), path(chrom_sizes) ]
 
     main:
 
-    // Normalize inputs to (meta, path)
-    ch_norm = ch_gff3_files.map { item ->
-        if (item instanceof Path) {
-            def meta = [ id: item.baseName ]
-            return [ meta, item ]
-        } else if (item instanceof Tuple && item.size()==2) {
-            return item
-        } else {
-            def (meta, p) = item
-            return [ meta, p ]
-        }
-    }
+    // Join with matching chrom.sizes to carry genome context forward (sizes not used here)
+    ch_gff_kv   = ch_gff3_files.map { meta, gff -> [ meta.genome, [meta, gff] ] }
+    ch_sizes_kv = ch_chrom_sizes.map { genome, sizes -> [ genome, sizes ] }
+    ch_joined   = ch_gff_kv.join(ch_sizes_kv).map { genome, mg, sizes -> [ mg[0], mg[1] ] }
 
-    UCSC_GFF3_TO_GENEPRED(ch_norm)
+    UCSC_GFF3_TO_GENEPRED(ch_joined)
     ch_gp = UCSC_GFF3_TO_GENEPRED.out.genepred
 
     UCSC_GENEPRED_TO_BIGGENEPRED_BED(ch_gp)
     ch_bed = UCSC_GENEPRED_TO_BIGGENEPRED_BED.out.biggenepred_bed
 
-    // Broadcast constants: chrom.sizes and AS file (Cartesian join)
-    ch_sizes = ch_chrom_sizes
+    // Join bed with matching chrom.sizes by meta.genome, then add AS file
+    ch_sizes_kv2 = ch_chrom_sizes.map { genome, sizes -> [ genome, sizes ] }
+    ch_bed_kv = ch_bed.map { meta, bed -> [ meta.genome, [meta, bed] ] }
+    ch_join_sizes = ch_bed_kv.join(ch_sizes_kv2).map { genome, mb, sizes -> [ mb[0], mb[1], sizes ] }
     ch_as = Channel.fromPath("${projectDir}/assets/bigGenePred.as")
-
-    ch_join = ch_bed.cross(ch_sizes).cross(ch_as).map { t ->
-        def meta = t[0][0][0]
-        def bed  = t[0][0][1]
-        def sizes= t[0][1]
-        def asf  = t[1]
-        [ meta, bed, sizes, asf ]
-    }
+    ch_join = ch_join_sizes.cross(ch_as).map { t -> [ t[0], t[1], t[2], t[3] ] }
 
     UCSC_BED_TO_BIGBED_BIGGENEPRED(ch_join)
     ch_bigbed = UCSC_BED_TO_BIGBED_BIGGENEPRED.out.bigbed

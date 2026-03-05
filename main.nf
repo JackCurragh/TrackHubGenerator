@@ -18,90 +18,104 @@ include { AGGREGATE_TRACKHUB } from './modules/local/aggregate_trackhubs.nf'
 
 // Main workflow
 workflow {
-    // Validate inputs
+    // Expect samplesheet columns: Run,FileType,Path,Genome[,AssemblyReport][,Hub]
 
-    // Input channels
-    ch_samplesheet = Channel.fromPath(params.input)
+    ch_rows = Channel.fromPath(params.input)
         .splitCsv(header: true)
-        .map { row -> 
+        .map { row ->
             def meta = [
                 id: row.Run,
-                filetype: row.FileType
+                filetype: row.FileType,
+                genome: row.Genome,
+                hub: row.containsKey('Hub') ? row.Hub : null,
+                assembly_report: row.containsKey('AssemblyReport') ? row.AssemblyReport : ''
             ]
-            [meta, row.FileType, file(row.Path)]
+            [ meta, row.FileType, file(row.Path) ]
         }
 
-    // Split into separate channels by file type using branch
-    ch_files = ch_samplesheet
-        .branch { run, filetype, filepath ->
-            bed: filetype == 'bed'
-                return [run, filepath]
-            bedgraph: filetype == 'bedgraph'
-                return [run, filepath]
-            bigbed: filetype == 'bigbed'
-                return [run, filepath]
-            bigwig: filetype == 'bigwig'
-            gff3: filetype == 'gff3'
-                return [run, filepath]
-        }
+    // genome -> assembly_report (if provided)
+    ch_genome_reports = ch_rows
+        .map { meta, ft, p -> [ meta.genome, meta.assembly_report ] }
+        .unique()
 
-    // Access individual file type channels
-    ch_bed = ch_files.bed
-    ch_bedgraph = ch_files.bedgraph
-    ch_bigbed = ch_files.bigbed
-    ch_bigwig = ch_files.bigwig
-    ch_gff3 = ch_files.gff3
-
-    // Get chromosome sizes
-    if (params.chrom_sizes) {
-        ch_chrom_sizes = Channel.fromPath(params.chrom_sizes).first()
-    } else if (params.assembly_report) {
-        def ch_report = Channel.value(file(params.assembly_report))
-        def ch_gff_hint = ch_samplesheet
-            .filter { meta, ft, p -> ft == 'gff3' }
-            .map { meta, ft, p -> p }
-            .first()
-            .ifEmpty('')
-        GET_CHROM_SIZES_ASSEMBLY_REPORT(ch_report, ch_gff_hint)
-        ch_chrom_sizes = GET_CHROM_SIZES_ASSEMBLY_REPORT.out.chrom_sizes.first()
-    } else if (params.genome) {
-        GET_CHROM_SIZES_UCSC(params.genome)
-        ch_chrom_sizes = GET_CHROM_SIZES_UCSC.out.chrom_sizes.first()
-    } else if (params.genome_fasta) {
-        GET_CHROM_SIZES_FASTA(params.genome_fasta)
-        ch_chrom_sizes = GET_CHROM_SIZES_FASTA.out.chrom_sizes.first()
-    } else {
-        error "No chrom sizes provided. Specify one of: --chrom_sizes, --genome_fasta, or --genome."
+    // Split by type (meta is carried and includes genome)
+    ch_files = ch_rows.branch { meta, filetype, filepath ->
+        bed:      filetype == 'bed';       return [meta, filepath]
+        bedgraph: filetype == 'bedgraph';  return [meta, filepath]
+        bigbed:   filetype == 'bigbed';    return [meta, filepath]
+        bigwig:   filetype == 'bigwig';    return [meta, filepath]
+        gff3:     filetype == 'gff3';      return [meta, filepath]
     }
 
+    ch_bed      = ch_files.bed
+    ch_bedgraph = ch_files.bedgraph
+    ch_bigbed   = ch_files.bigbed
+    ch_bigwig   = ch_files.bigwig
+    ch_gff3     = ch_files.gff3
 
-    // Process BED12 files
-    BED12_PROCESSING(ch_bed, ch_chrom_sizes)
-    ch_bigbed = ch_bigbed.mix(BED12_PROCESSING.out.bigbed)
+    // Chrom.sizes per genome via assembly report when available
+    ch_from_reports = ch_genome_reports
+        .filter { genome, rep -> rep }
+        .map    { genome, rep -> [ genome, file(rep) ] }
 
-    // Process BEDGRAPH files
-    BEDGRAPH_PROCESSING(ch_bedgraph, ch_chrom_sizes)
-    ch_bigwig = ch_bigwig.mix(BEDGRAPH_PROCESSING.out.bigwig)
+    // One GFF hint per genome (first seen)
+    ch_gff_hint = ch_gff3
+        .map { meta, p -> [ meta.genome, p ] }
+        .groupTuple()
+        .map { genome, paths -> [ genome, (paths instanceof List && paths) ? paths[0] : paths ] }
 
-    // Process GFF3 annotation files (CAT/Ensembl)
+    ch_cs_from_report = ch_from_reports.join(ch_gff_hint).map { genome, rep, gff -> [ genome, rep, gff ] }
+    GET_CHROM_SIZES_ASSEMBLY_REPORT(ch_cs_from_report)
+    ch_sizes_report = GET_CHROM_SIZES_ASSEMBLY_REPORT.out.chrom_sizes
+
+    // Fallback: UCSC fetch for genomes that lack an AssemblyReport
+    ch_missing_genomes = ch_genome_reports.filter { g, rep -> !rep }.map { g, rep -> g }
+    GET_CHROM_SIZES_UCSC(ch_missing_genomes)
+    ch_sizes_ucsc = GET_CHROM_SIZES_UCSC.out.chrom_sizes
+
+    // Unified chrom.sizes stream keyed by genome
+    ch_chrom_sizes = ch_sizes_report.mix(ch_sizes_ucsc).unique()
+
+    // Process types with keyed chrom.sizes
+    if (ch_bed) {
+        BED12_PROCESSING(ch_bed, ch_chrom_sizes)
+        ch_bigbed = ch_bigbed.mix(BED12_PROCESSING.out.bigbed)
+    }
+
+    if (ch_bedgraph) {
+        BEDGRAPH_PROCESSING(ch_bedgraph, ch_chrom_sizes)
+        ch_bigwig = ch_bigwig.mix(BEDGRAPH_PROCESSING.out.bigwig)
+    }
+
     if (ch_gff3) {
         GFF3_PROCESSING(ch_gff3, ch_chrom_sizes)
         ch_bigbed = ch_bigbed.mix(GFF3_PROCESSING.out.bigbed)
     }
 
-    // Generate track hub - wait for all processing to complete
-    ch_trackhub = GENERATE_TRACKHUB(
-        ch_bigbed.map { meta, filepath -> filepath }.collect().ifEmpty([]).collect(),
-        ch_bigwig.map { meta, filepath -> filepath }.collect().ifEmpty([]).collect(),
-        params.hub_name,
-        params.genome,
-        params.sample_regex,
-        params.annotation_regex,
-        params.email
-    )
+    // Group tracks into hubs: key = [hubName, genome]
+    def hubKey = { meta ->
+        def base = meta.hub ?: (params.hub_name ? "${params.hub_name}_${meta.genome}" : meta.genome)
+        [ base, meta.genome ]
+    }
+
+    ch_bb_kv = ch_bigbed.map { meta, p -> [ hubKey(meta), p ] }
+    ch_bw_kv = ch_bigwig.map { meta, p -> [ hubKey(meta), p ] }
+
+    // Combine into one keyed stream, tag each entry by type, then group by key
+    ch_comb = ch_bb_kv.map { k, p -> [ k, ['bb', p] ] }.mix( ch_bw_kv.map { k, p -> [ k, ['bw', p] ] } )
+    ch_grouped = ch_comb.groupTuple()
+
+    ch_hubs = ch_grouped.map { key, items ->
+        def hub_name = key[0]
+        def genome = key[1]
+        def bbs = items.findAll { it[0] == 'bb' }.collect { it[1] }
+        def bws = items.findAll { it[0] == 'bw' }.collect { it[1] }
+        [ bbs ?: [], bws ?: [], hub_name, genome, params.sample_regex, params.annotation_regex, params.email ]
+    }
+
+    GENERATE_TRACKHUB(ch_hubs)
 
     // Optionally aggregate multiple hubs using a JSON manifest of entries
-    // Manifest format: [ {"genome": "GCA_...", "trackdb": "/abs/path/to/hub/trackDb.txt"}, ... ]
     if (params.aggregate_name && params.aggregate_manifest) {
         def manifest_path = file(params.aggregate_manifest)
         AGGREGATE_TRACKHUB(
@@ -113,15 +127,6 @@ workflow {
             params.aggregate_long_label ?: "${params.aggregate_name} aggregated hub"
         )
     }
-
-    // // Move to FTP if specified
-    // if (params.ftp_dir) {
-    //     MOVE_TO_FTP(ch_trackhub, params.ftp_dir)
-    // }
-
-    // // Process log files
-    // ch_log_files = Channel.fromPath("${params.outdir}/**/*.log")
-    // PROCESS_LOG_FILES(ch_log_files.collect())
 }
 
     // Workflow completion handler

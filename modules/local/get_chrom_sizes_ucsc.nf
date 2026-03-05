@@ -8,7 +8,7 @@ process GET_CHROM_SIZES_UCSC {
     val(ucsc_genome_db) // eg "hg38"
 
     output:
-    path("*.chrom_sizes"), emit: chrom_sizes
+    tuple val(ucsc_genome_db), path("*.chrom_sizes"), emit: chrom_sizes
 
     script:
     """

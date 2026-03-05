@@ -1,15 +1,14 @@
 process GET_CHROM_SIZES_ASSEMBLY_REPORT {
-    tag "$report.baseName"
+    tag "$genome"
     label 'process_low'
 
     container "python:3.11-slim"
 
     input:
-    path report
-    val  gff_hint
+    tuple val(genome), path(report), val(gff_hint)
 
     output:
-    path("chrom.sizes") , emit: chrom_sizes
+    tuple val(genome), path("chrom.sizes"), emit: chrom_sizes
 
     script:
     def gff_arg = (gff_hint && gff_hint.toString().trim()) ? "--gff '${gff_hint}'" : ''

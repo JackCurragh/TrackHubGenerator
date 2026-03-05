@@ -9,13 +9,7 @@ process GENERATE_TRACKHUB {
     }
 
     input:
-    path(bigbed)
-    path(bigwig)
-    val(hub_name)
-    val(genome)
-    val(sample_regex)
-    val(annotation_regex)
-    val(email)
+    tuple path(bigbed), path(bigwig), val(hub_name), val(genome), val(sample_regex), val(annotation_regex), val(email)
 
     output:
     path "trackhub_output/**"              , emit: trackhub
