@@ -1,6 +1,6 @@
 process UCSC_GFF3_TO_GENEPRED {
     tag "$meta.id"
-    label 'process_low'
+    label 'gff3_heavy'
 
     container "docker://quay.io/biocontainers/ucsc-gff3togenepred:377--h2a80c09_2"
 
@@ -20,7 +20,9 @@ process UCSC_GFF3_TO_GENEPRED {
         IN="${prefix}.gff3"
     fi
 
-    gff3ToGenePred -useName -warnAndContinue "\$IN" "${prefix}.genePred"
+    # Strip noisy attribute to reduce warnings, then convert
+    cat "\$IN" | awk -F'\t' 'BEGIN{OFS="\t"} /^#/ {print; next} { sub(/;AdditionalSources=[^;]*/, "", $9); print }' > "${prefix}.sanitized.gff3"
+    gff3ToGenePred -useName -warnAndContinue "${prefix}.sanitized.gff3" "${prefix}.genePred"
     """
 
     stub:
