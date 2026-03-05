@@ -20,7 +20,7 @@ process UCSC_GFF3_TO_GENEPRED {
         IN=${prefix}.gff3
     fi
 
-    gff3ToGenePred -useName -warnAndContinue ${IN} ${prefix}.genePred
+    gff3ToGenePred -useName -warnAndContinue $IN ${prefix}.genePred
     """
 
     stub:
