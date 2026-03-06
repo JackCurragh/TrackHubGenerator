@@ -20,14 +20,14 @@ process UCSC_BED_TO_BIGBED_BIGGENEPRED {
     # 2) Else, if sizes use chr-prefix and BED does not -> add chr (and map MT/M->chrM)
     # 3) Recheck; if still mismatched, print offending contigs and exit
 
-    awk 'BEGIN{OFS="\t"} FNR==NR {sizes[$1]=1; next} {if(!seen[$1]++){ if(!( $1 in sizes)) miss[$1]=1}} END{for(c in miss) print c}' \
+    awk 'BEGIN{OFS="\t"} FNR==NR {sizes[\$1]=1; next} {if(!seen[\$1]++){ if(!( \$1 in sizes)) miss[\$1]=1}} END{for(c in miss) print c}' \
         ${chrom_sizes} ${bed} > ${prefix}.missing.pre || true
 
     if [ ! -s ${prefix}.missing.pre ]; then
         cp ${bed} ${bedHarmonized}
     else
         # Do we have chr-prefixed sizes?
-        if awk 'NR==1 { exit ($1 ~ /^chr/ ? 0 : 1) }' ${chrom_sizes}; then
+        if awk 'NR==1 { exit (\$1 ~ /^chr/ ? 0 : 1) }' ${chrom_sizes}; then
             awk 'BEGIN{OFS="\t"} {c=$1; if(c !~ /^chr/){ if(c=="MT"||c=="M"){c="chrM"} else {c="chr" c} } $1=c; print}' \
                 ${bed} > ${bedHarmonized}
         else
@@ -36,7 +36,7 @@ process UCSC_BED_TO_BIGBED_BIGGENEPRED {
         fi
 
         # Recheck after attempted harmonization
-        awk 'BEGIN{OFS="\t"} FNR==NR {sizes[$1]=1; next} {if(!seen[$1]++){ if(!( $1 in sizes)) miss[$1]=1}} END{for(c in miss) print c}' \
+        awk 'BEGIN{OFS="\t"} FNR==NR {sizes[\$1]=1; next} {if(!seen[\$1]++){ if(!( \$1 in sizes)) miss[\$1]=1}} END{for(c in miss) print c}' \
             ${chrom_sizes} ${bedHarmonized} > ${prefix}.missing.post || true
 
         if [ -s ${prefix}.missing.post ]; then
