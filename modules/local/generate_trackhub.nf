@@ -43,8 +43,8 @@ process GENERATE_TRACKHUB {
 
     stub:
     """
-    mkdir -p trackhub_output/${hub_name}
-    touch trackhub_output/${hub_name}/stub_trackhub.txt
+    mkdir -p "trackhub_output/${hub_name}"
+    touch "trackhub_output/${hub_name}/stub_trackhub.txt"
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         TrackHubGenerator: "stub_version"

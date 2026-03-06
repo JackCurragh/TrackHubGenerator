@@ -14,11 +14,38 @@ process CONVERT_BED_TO_BIGBED {
     script:
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
+    def bedHarmonized = "${prefix}.harmonized.bed"
+    def bedSorted = "${prefix}.sorted.bed"
     """
-    bedToBigBed \\
-        $args \\
-        $bed \\
-        $chrom_sizes \\
+    # Harmonize BED chrom names to match chrom.sizes (ensure UCSC-compat when sizes use chr*)
+    awk 'BEGIN{OFS="\t"} FNR==NR {sizes[\$1]=1; next} {if(!seen[\$1]++){ if(!( \$1 in sizes)) miss[\$1]=1}} END{for(c in miss) print c}' \
+        $chrom_sizes $bed > ${prefix}.missing.pre || true
+
+    if [ ! -s ${prefix}.missing.pre ]; then
+        cp $bed $bedHarmonized
+    else
+        if awk 'NR==1 { exit (\$1 ~ /^chr/ ? 0 : 1) }' $chrom_sizes; then
+            awk 'BEGIN{OFS="\t"} {c=\$1; if(c !~ /^chr/){ if(c=="MT"||c=="M"){c="chrM"} else {c="chr" c} } \$1=c; print}' \
+                $bed > $bedHarmonized
+        else
+            cp $bed $bedHarmonized
+        fi
+
+        awk 'BEGIN{OFS="\t"} FNR==NR {sizes[\$1]=1; next} {if(!seen[\$1]++){ if(!( \$1 in sizes)) miss[\$1]=1}} END{for(c in miss) print c}' \
+            $chrom_sizes $bedHarmonized > ${prefix}.missing.post || true
+        if [ -s ${prefix}.missing.post ]; then
+            echo "[ERROR] The following contigs in BED are absent from chrom.sizes:" >&2
+            head -n 50 ${prefix}.missing.post >&2
+            exit 2
+        fi
+    fi
+
+    sort -k1,1 -k2,2n $bedHarmonized > $bedSorted
+
+    bedToBigBed \
+        $args \
+        $bedSorted \
+        $chrom_sizes \
         ${prefix}.bb
 
     cat <<-END_VERSIONS > versions.yml

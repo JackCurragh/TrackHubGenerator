@@ -28,7 +28,7 @@ process UCSC_BED_TO_BIGBED_BIGGENEPRED {
     else
         # Do we have chr-prefixed sizes?
         if awk 'NR==1 { exit (\$1 ~ /^chr/ ? 0 : 1) }' ${chrom_sizes}; then
-            awk 'BEGIN{OFS="\t"} {c=$1; if(c !~ /^chr/){ if(c=="MT"||c=="M"){c="chrM"} else {c="chr" c} } $1=c; print}' \
+            awk 'BEGIN{OFS="\t"} {c=\$1; if(c !~ /^chr/){ if(c=="MT"||c=="M"){c="chrM"} else {c="chr" c} } \$1=c; print}' \
                 ${bed} > ${bedHarmonized}
         else
             # Sizes are not chr-prefixed; leave as-is (we do not auto-strip chr here)
