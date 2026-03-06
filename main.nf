@@ -18,6 +18,7 @@ include { AGGREGATE_TRACKHUB } from './modules/local/aggregate_trackhubs.nf'
 
 // Main workflow
 workflow {
+    main:
     // Expect samplesheet columns: Run,FileType,Path,Genome[,AssemblyReport][,Hub]
 
     ch_rows = Channel.fromPath(params.input)

@@ -43,7 +43,7 @@ process CONVERT_BEDGRAPH_TO_BIGWIG {
         if ${params.drop_missing_contigs ?: true}; then
             echo "[WARN] Dropping records on contigs absent from chrom.sizes:" >&2
             head -n 50 ${prefix}.missing.post >&2
-            awk 'BEGIN{OFS="\t"} FNR==NR {sizes[\$1]=1; next} (NR==FNR){next} { if($0 ~ /^(track|browser|#)/){ print; next } if(\$1 in sizes) print }' $chrom_sizes $bgHarmonized > ${bgHarmonized}.filtered
+            awk 'BEGIN{OFS="\t"} FNR==NR {sizes[\$1]=1; next} (NR==FNR){next} { if(\$0 ~ /^(track|browser|#)/){ print; next } if(\$1 in sizes) print }' $chrom_sizes $bgHarmonized > ${bgHarmonized}.filtered
             mv ${bgHarmonized}.filtered $bgHarmonized
         else
             echo "[ERROR] The following contigs in bedGraph are absent from chrom.sizes:" >&2
