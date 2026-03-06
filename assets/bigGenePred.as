@@ -16,10 +16,9 @@ table bigGenePred
     string  name2;        "Alternative name"
     string  cdsStartStat; "CDS start status"
     string  cdsEndStat;   "CDS end status"
-    int     exonFrames[blockCount]; "Exon frame offsets"
+    int[blockCount] exonFrames; "Exon frame offsets"
     string  type;         "Transcript type"
     string  geneName;     "Gene name"
     string  geneName2;    "Alternative gene name"
     string  geneType;     "Gene type"
     )
-

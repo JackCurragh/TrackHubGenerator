@@ -20,12 +20,13 @@ def parse_args():
     p = argparse.ArgumentParser(description='Build chrom.sizes from NCBI assembly_report.txt with optional chr logic from a GFF hint.')
     p.add_argument('--report', required=True, help='Path to assembly_report.txt')
     p.add_argument('--gff', default='', help='Path to a representative GFF3 (can be .gz) to sniff chr usage')
+    p.add_argument('--force-ucsc', action='store_true', help='Force UCSC-style names (chr*); ignores GFF sniffing')
     p.add_argument('--out', required=True, help='Output chrom.sizes path')
     return p.parse_args()
 
 def main():
     a = parse_args()
-    want_ucsc = sniff_chr_from_gff(a.gff)
+    want_ucsc = a.force_ucsc or sniff_chr_from_gff(a.gff)
 
     headers = []
     with open(a.report, 'rt', encoding='utf-8', errors='ignore') as fh:
@@ -87,4 +88,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

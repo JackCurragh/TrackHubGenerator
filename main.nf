@@ -58,19 +58,28 @@ workflow {
         .filter { genome, rep -> rep }
         .map    { genome, rep -> [ genome, file(rep) ] }
 
-    // One GFF hint per genome (first seen)
-    ch_gff_hint = ch_gff3
+    // Prepare a GFF hint per genome, defaulting to '' if no GFF is present
+    ch_all_genomes = ch_genome_reports.map { g, rep -> g }.unique()
+    ch_gff_hint_present = ch_gff3
         .map { meta, p -> [ meta.genome, p ] }
+    ch_gff_hint_empty = ch_all_genomes.map { g -> [ g, '' ] }
+    ch_gff_hint_all = ch_gff_hint_empty
+        .mix(ch_gff_hint_present)
         .groupTuple()
-        .map { genome, paths -> [ genome, (paths instanceof List && paths) ? paths[0] : paths ] }
+        .map { genome, vals ->
+            def v = (vals instanceof List) ? vals.find { it } : vals
+            [ genome, v ?: '' ]
+        }
 
-    ch_cs_from_report = ch_from_reports.join(ch_gff_hint).map { genome, rep, gff -> [ genome, rep, gff ] }
+    ch_cs_from_report = ch_from_reports.join(ch_gff_hint_all).map { genome, rep, gff -> [ genome, rep, gff ] }
     GET_CHROM_SIZES_ASSEMBLY_REPORT(ch_cs_from_report)
     ch_sizes_report = GET_CHROM_SIZES_ASSEMBLY_REPORT.out.chrom_sizes
 
-    // Fallback: UCSC fetch for genomes that lack an AssemblyReport
-    ch_missing_genomes = ch_genome_reports.filter { g, rep -> !rep }.map { g, rep -> g }
-    GET_CHROM_SIZES_UCSC(ch_missing_genomes)
+    // Fallback: UCSC fetch ONLY for UCSC-style DB names (skip GCA_/GCF_ accessions)
+    ch_missing_ucsc = ch_genome_reports
+        .filter { g, rep -> !rep && !(g ==~ /^(GCA|GCF)_/ ) }
+        .map { g, rep -> g }
+    GET_CHROM_SIZES_UCSC(ch_missing_ucsc)
     ch_sizes_ucsc = GET_CHROM_SIZES_UCSC.out.chrom_sizes
 
     // Unified chrom.sizes stream keyed by genome
