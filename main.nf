@@ -82,8 +82,17 @@ workflow {
     GET_CHROM_SIZES_UCSC(ch_missing_ucsc)
     ch_sizes_ucsc = GET_CHROM_SIZES_UCSC.out.chrom_sizes
 
-    // Unified chrom.sizes stream keyed by genome
-    ch_chrom_sizes = ch_sizes_report.mix(ch_sizes_ucsc).unique()
+    // Unified chrom.sizes stream keyed by genome (prefer assembly report over UCSC)
+    def ch_sizes_report_l = ch_sizes_report.map { g, p -> [ g, ['report', p] ] }
+    def ch_sizes_ucsc_l   = ch_sizes_ucsc  .map { g, p -> [ g, ['ucsc',   p] ] }
+    def ch_sizes_l = ch_sizes_report_l.mix(ch_sizes_ucsc_l)
+    ch_chrom_sizes = ch_sizes_l.groupTuple().map { g, items ->
+        def rep = (items instanceof List) ? items.find { it[0] == 'report' } : null
+        def uc  = (items instanceof List) ? items.find { it[0] == 'ucsc' }   : null
+        def pick = rep ?: uc
+        if (!pick) { error "No chrom.sizes available for genome ${g}" }
+        [ g, pick[1] ]
+    }
 
     // Process types with keyed chrom.sizes
     if (ch_bed) {

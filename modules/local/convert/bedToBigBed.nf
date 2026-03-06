@@ -17,23 +17,34 @@ process CONVERT_BED_TO_BIGBED {
     def bedHarmonized = "${prefix}.harmonized.bed"
     def bedSorted = "${prefix}.sorted.bed"
     """
-    # Harmonize BED chrom names to match chrom.sizes (ensure UCSC-compat when sizes use chr*)
+    # Harmonize BED chrom names to match chrom.sizes per-contig (only change when it yields a match)
+    awk '
+        BEGIN{OFS="\t"}
+        FNR==NR {sizes[\$1]=1; next}
+        {
+            c=\$1; mapped=c
+            if(!(c in sizes)) {
+                add = (c=="MT"||c=="M")?"chrM":"chr" c
+                if(add in sizes) mapped=add
+                else if(c ~ /^chr/) {
+                    base=substr(c,4); if(base=="M"||base=="MT") base="MT"
+                    if(base in sizes) mapped=base
+                }
+            }
+            \$1=mapped; print
+        }' \
+        $chrom_sizes $bed > $bedHarmonized
+
+    # Validate or optionally drop missing contigs
     awk 'BEGIN{OFS="\t"} FNR==NR {sizes[\$1]=1; next} {if(!seen[\$1]++){ if(!( \$1 in sizes)) miss[\$1]=1}} END{for(c in miss) print c}' \
-        $chrom_sizes $bed > ${prefix}.missing.pre || true
-
-    if [ ! -s ${prefix}.missing.pre ]; then
-        cp $bed $bedHarmonized
-    else
-        if awk 'NR==1 { exit (\$1 ~ /^chr/ ? 0 : 1) }' $chrom_sizes; then
-            awk 'BEGIN{OFS="\t"} {c=\$1; if(c !~ /^chr/){ if(c=="MT"||c=="M"){c="chrM"} else {c="chr" c} } \$1=c; print}' \
-                $bed > $bedHarmonized
+        $chrom_sizes $bedHarmonized > ${prefix}.missing.post || true
+    if [ -s ${prefix}.missing.post ]; then
+        if ${params.drop_missing_contigs ?: true}; then
+            echo "[WARN] Dropping records on contigs absent from chrom.sizes:" >&2
+            head -n 50 ${prefix}.missing.post >&2
+            awk 'BEGIN{OFS="\t"} FNR==NR {sizes[\$1]=1; next} (\$1 in sizes)' $chrom_sizes $bedHarmonized > ${bedHarmonized}.filtered
+            mv ${bedHarmonized}.filtered $bedHarmonized
         else
-            cp $bed $bedHarmonized
-        fi
-
-        awk 'BEGIN{OFS="\t"} FNR==NR {sizes[\$1]=1; next} {if(!seen[\$1]++){ if(!( \$1 in sizes)) miss[\$1]=1}} END{for(c in miss) print c}' \
-            $chrom_sizes $bedHarmonized > ${prefix}.missing.post || true
-        if [ -s ${prefix}.missing.post ]; then
             echo "[ERROR] The following contigs in BED are absent from chrom.sizes:" >&2
             head -n 50 ${prefix}.missing.post >&2
             exit 2
