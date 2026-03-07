@@ -17,7 +17,7 @@ process UCSC_BED_TO_BIGBED_BIGGENEPRED {
     """
     # Harmonize BED chrom names to match chrom.sizes per-contig (only change when it yields a match)
     awk '
-        BEGIN{OFS="\t"}
+        BEGIN{FS=OFS="\t"}
         FNR==NR {sizes[\$1]=1; next}
         {
             c=\$1; mapped=c
@@ -34,14 +34,14 @@ process UCSC_BED_TO_BIGBED_BIGGENEPRED {
         ${chrom_sizes} ${bed} > ${bedHarmonized}
 
     # Validate or optionally drop missing contigs
-    awk 'BEGIN{OFS="\t"} FNR==NR {sizes[\$1]=1; next} {if(!seen[\$1]++){ if(!( \$1 in sizes)) miss[\$1]=1}} END{for(c in miss) print c}' \
+    awk 'BEGIN{FS=OFS="\t"} FNR==NR {sizes[\$1]=1; next} {if(!seen[\$1]++){ if(!( \$1 in sizes)) miss[\$1]=1}} END{for(c in miss) print c}' \
         ${chrom_sizes} ${bedHarmonized} > ${prefix}.missing.post || true
 
     if [ -s ${prefix}.missing.post ]; then
         if ${params.drop_missing_contigs ?: true}; then
             echo "[WARN] Dropping records on contigs absent from chrom.sizes:" >&2
             head -n 50 ${prefix}.missing.post >&2
-            awk 'BEGIN{OFS="\t"} FNR==NR {sizes[\$1]=1; next} (\$1 in sizes)' ${chrom_sizes} ${bedHarmonized} > ${bedHarmonized}.filtered
+            awk 'BEGIN{FS=OFS="\t"} FNR==NR {sizes[\$1]=1; next} (\$1 in sizes)' ${chrom_sizes} ${bedHarmonized} > ${bedHarmonized}.filtered
             mv ${bedHarmonized}.filtered ${bedHarmonized}
         else
             echo "[ERROR] The following contigs in BED are absent from chrom.sizes:" >&2
@@ -52,7 +52,7 @@ process UCSC_BED_TO_BIGBED_BIGGENEPRED {
     fi
 
     sort -k1,1 -k2,2n ${bedHarmonized} > ${bedSorted}
-    bedToBigBed -type=bed12+8 -as=${as_file} ${bedSorted} ${chrom_sizes} ${prefix}.bb
+    bedToBigBed -tab -type=bed12+8 -as=${as_file} ${bedSorted} ${chrom_sizes} ${prefix}.bb
 
     """
 
