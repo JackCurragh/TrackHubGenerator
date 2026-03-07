@@ -137,7 +137,9 @@ workflow {
     // Optionally aggregate multiple hubs using a JSON manifest of entries
     if (params.aggregate_name && params.aggregate_manifest) {
         def manifest_path = file(params.aggregate_manifest)
+        def writer = file("${projectDir}/bin/write_aggregate_hub.py")
         AGGREGATE_TRACKHUB(
+            writer,
             manifest_path,
             params.aggregate_name,
             params.outdir,
@@ -162,7 +164,9 @@ workflow AGGREGATOR {
 
     ch_manifest = Channel.fromPath(params.aggregate_manifest).first()
 
+    def writer = file("${projectDir}/bin/write_aggregate_hub.py")
     AGGREGATE_TRACKHUB(
+        writer,
         ch_manifest,
         params.aggregate_name,
         params.outdir,
