@@ -21,7 +21,7 @@ workflow GFF3_PROCESSING {
     // Join bed with matching chrom.sizes by meta.genome, then add AS file
     ch_sizes_kv2 = ch_chrom_sizes.map { genome, sizes -> [ genome, sizes ] }
     ch_bed_kv = ch_bed.map { meta, bed -> [ meta.genome, [meta, bed] ] }
-    ch_join_sizes = ch_bed_kv.join(ch_sizes_kv2).map { genome, mb, sizes -> [ mb[0], mb[1], sizes ] }
+    ch_join_sizes = ch_bed_kv.combine(ch_sizes_kv2).map { genome, mb, sizes -> [ mb[0], mb[1], sizes ] }
     ch_as = Channel.fromPath("${projectDir}/assets/bigGenePred.as")
     ch_join = ch_join_sizes.cross(ch_as).map { t -> [ t[0], t[1], t[2], t[3] ] }
 
