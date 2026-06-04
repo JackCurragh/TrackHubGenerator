@@ -9,6 +9,7 @@ import json
 import re
 import shutil
 import tempfile
+import time
 from collections import defaultdict
 from collections import OrderedDict
 from pathlib import Path
@@ -45,6 +46,12 @@ def parse_args() -> argparse.Namespace:
         "--keep-tmp",
         action="store_true",
         help="Keep temporary shards after a successful run for debugging.",
+    )
+    parser.add_argument(
+        "--progress-every",
+        type=int,
+        default=10,
+        help="Print progress every N input CSV rows or N shard files. Use 0 to disable progress.",
     )
     return parser.parse_args()
 
@@ -221,6 +228,45 @@ def tmp_root_for(args: argparse.Namespace, output_dir: Path) -> Path:
     return Path(tempfile.mkdtemp(prefix=".gene_lookup_", dir=output_dir))
 
 
+def count_csv_rows(path: Path) -> int:
+    with path.open(newline="") as handle:
+        return max(sum(1 for _ in handle) - 1, 0)
+
+
+def format_elapsed(seconds: float) -> str:
+    seconds = int(seconds)
+    hours, rem = divmod(seconds, 3600)
+    minutes, seconds = divmod(rem, 60)
+    if hours:
+        return f"{hours}h{minutes:02d}m{seconds:02d}s"
+    if minutes:
+        return f"{minutes}m{seconds:02d}s"
+    return f"{seconds}s"
+
+
+def print_scan_progress(done: int, total: int, genes: int, start_time: float, label: str = "") -> None:
+    elapsed = time.monotonic() - start_time
+    pct = 100 * done / total if total else 100
+    rate = 60 * done / elapsed if elapsed > 0 else 0
+    suffix = f" {label}" if label else ""
+    print(
+        f"[scan] {done}/{total} rows ({pct:.1f}%) | genes={genes:,} | "
+        f"elapsed={format_elapsed(elapsed)} | rate={rate:.2f} rows/min{suffix}",
+        flush=True,
+    )
+
+
+def print_write_progress(done: int, total: int, genes: int, start_time: float) -> None:
+    elapsed = time.monotonic() - start_time
+    pct = 100 * done / total if total else 100
+    rate = done / elapsed if elapsed > 0 else 0
+    print(
+        f"[write] {done}/{total} shards ({pct:.1f}%) | genes={genes:,} | "
+        f"elapsed={format_elapsed(elapsed)} | rate={rate:.2f} shards/sec",
+        flush=True,
+    )
+
+
 def main() -> None:
     args = parse_args()
     if args.shards < 1:
@@ -229,6 +275,7 @@ def main() -> None:
     input_csv = Path(args.input_csv)
     trackhubs_root = Path(args.trackhubs_root)
     output_dir = Path(args.output_dir)
+    total_rows = count_csv_rows(input_csv)
     genes_dir = output_dir / "genes"
     output_dir.mkdir(parents=True, exist_ok=True)
     genes_dir.mkdir(parents=True, exist_ok=True)
@@ -245,6 +292,11 @@ def main() -> None:
     }
 
     try:
+        start_time = time.monotonic()
+        print(
+            f"Building gene lookup from {total_rows} input rows into {args.shards} temporary shards at {tmp_root}",
+            flush=True,
+        )
         with input_csv.open(newline="") as handle, ShardWriters(shard_paths) as shard_writers:
             for row in csv.DictReader(handle):
                 stats["rows"] += 1
@@ -325,11 +377,16 @@ def main() -> None:
                         }
                         shard_writers.write(shard_for_key(key, args.shards), key, entry)
                         stats["gene_entries"] += 1
-                if stats["rows"] % 25 == 0:
-                    print(f"Processed {stats['rows']} input rows and {stats['gene_entries']} gene entries", flush=True)
+                if args.progress_every and stats["rows"] % args.progress_every == 0:
+                    print_scan_progress(stats["rows"], total_rows, stats["gene_entries"], start_time, row["Run"])
+        if not args.progress_every or stats["rows"] % args.progress_every != 0:
+            print_scan_progress(stats["rows"], total_rows, stats["gene_entries"], start_time, "complete")
 
         gene_index = []
-        for shard_path in shard_paths:
+        existing_shards = [path for path in shard_paths if path.exists()]
+        write_start = time.monotonic()
+        print(f"Writing per-gene JSON from {len(existing_shards)} non-empty shards", flush=True)
+        for shard_i, shard_path in enumerate(existing_shards, start=1):
             if not shard_path.exists():
                 continue
             genes: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -369,6 +426,10 @@ def main() -> None:
                         "path": rel_path.as_posix(),
                     }
                 )
+            if args.progress_every and shard_i % args.progress_every == 0:
+                print_write_progress(shard_i, len(existing_shards), len(gene_index), write_start)
+        if not args.progress_every or len(existing_shards) % args.progress_every != 0:
+            print_write_progress(len(existing_shards), len(existing_shards), len(gene_index), write_start)
 
         gene_index.sort(key=lambda item: item["key"].lower())
 
