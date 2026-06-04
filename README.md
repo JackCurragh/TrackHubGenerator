@@ -266,4 +266,44 @@ Notes:
 - Uses containerized UCSC tools (override images via params in `nextflow.config`).
 - bigGenePred AutoSql is bundled in `assets/bigGenePred.as`.
 - Chrom sizes come from `--genome` or `--genome_fasta` like other inputs.
+
+### HPRC gene lookup
+
+For HPRC-scale static lookup generation, prefer a Slurm array rather than a single long-running process. The scan phase is split one job per annotation row in the trackhub input CSV, and the dependent merge job writes the final static lookup files.
+
+```bash
+OUT=/path/to/results/genark_trackhubs
+BASE=https://ftp.ebi.ac.uk/pub/databases/ensembl/hprc/release_2/R2_trackhubs
+
+bin/submit_gene_lookup_slurm.sh \
+  --input-csv "$OUT/hprc_trackhub_input.csv" \
+  --trackhubs-root "$OUT/trackhubs" \
+  --lookup-dir "$OUT/trackhubs/lookup" \
+  --parts-dir "$OUT/gene_lookup_parts" \
+  --base-url "$BASE" \
+  --shards 4096 \
+  --array-concurrency 50
+```
+
+The lower-level commands are also available:
+
+```bash
+bin/build_gene_lookup.py scan-row \
+  --input-csv "$OUT/hprc_trackhub_input.csv" \
+  --trackhubs-root "$OUT/trackhubs" \
+  --output-dir "$OUT/gene_lookup_parts" \
+  --base-url "$BASE" \
+  --shards 4096 \
+  --row "$SLURM_ARRAY_TASK_ID"
+
+bin/build_gene_lookup.py merge \
+  --input-csv "$OUT/hprc_trackhub_input.csv" \
+  --trackhubs-root "$OUT/trackhubs" \
+  --parts-dir "$OUT/gene_lookup_parts" \
+  --output-dir "$OUT/trackhubs/lookup" \
+  --base-url "$BASE" \
+  --shards 4096
+```
+
+By default, unnamed/local CAT gene IDs are skipped so the public portal indexes user-facing symbols and Ensembl stable IDs. Pass `--include-unnamed` only when an exhaustive local-ID index is required.
  
