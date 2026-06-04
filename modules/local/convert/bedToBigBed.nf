@@ -2,7 +2,7 @@ process CONVERT_BED_TO_BIGBED {
     tag "$meta.id"
     label 'process_low'
 
-    container "docker://quay.io/biocontainers/ucsc-bedtobigbed:357--1"
+    container "quay.io/biocontainers/ucsc-bedtobigbed:357--1"
 
     input:
     tuple val(meta), path(bed), path(chrom_sizes)
@@ -16,6 +16,7 @@ process CONVERT_BED_TO_BIGBED {
     def prefix = task.ext.prefix ?: "${meta.id}"
     def bedHarmonized = "${prefix}.harmonized.bed"
     def bedSorted = "${prefix}.sorted.bed"
+    def dropMissing = params.drop_missing_contigs == true
     """
     # Harmonize BED chrom names to match chrom.sizes per-contig (only change when it yields a match)
     awk '
@@ -39,7 +40,7 @@ process CONVERT_BED_TO_BIGBED {
     awk 'BEGIN{OFS="\t"} FNR==NR {sizes[\$1]=1; next} {if(!seen[\$1]++){ if(!( \$1 in sizes)) miss[\$1]=1}} END{for(c in miss) print c}' \
         $chrom_sizes $bedHarmonized > ${prefix}.missing.post || true
     if [ -s ${prefix}.missing.post ]; then
-        if ${params.drop_missing_contigs ?: true}; then
+        if ${dropMissing}; then
             echo "[WARN] Dropping records on contigs absent from chrom.sizes:" >&2
             head -n 50 ${prefix}.missing.post >&2
             awk 'BEGIN{OFS="\t"} FNR==NR {sizes[\$1]=1; next} (\$1 in sizes)' $chrom_sizes $bedHarmonized > ${bedHarmonized}.filtered

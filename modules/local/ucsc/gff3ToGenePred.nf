@@ -2,7 +2,7 @@ process UCSC_GFF3_TO_GENEPRED {
     tag "$meta.id"
     label 'gff3_heavy'
 
-    container "docker://quay.io/biocontainers/ucsc-gff3togenepred:377--h2a80c09_2"
+    container "quay.io/biocontainers/ucsc-gff3togenepred:447--h2a80c09_2"
 
     input:
     tuple val(meta), path(gff3)

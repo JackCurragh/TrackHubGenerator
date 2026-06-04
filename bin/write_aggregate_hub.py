@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from typing import Any, Dict, List
 
 
@@ -34,6 +35,16 @@ def _norm_opt(value: str | None) -> str | None:
     if not v or v.lower() == 'null':
         return None
     return v
+
+
+def _sample_label_from_trackdb(trackdb_abs: str, genome: str) -> str:
+    hub_dir = os.path.basename(os.path.dirname(os.path.dirname(trackdb_abs)))
+    match = re.match(r'^(?:HPRC_?)?(?P<sample>[A-Z0-9]+)_(?P<hap>mat|pat|hap1|hap2)$', hub_dir)
+    if not match:
+        return genome
+    hap = match.group('hap')
+    hap_label = {'mat': 'maternal', 'pat': 'paternal', 'hap1': 'hap1', 'hap2': 'hap2'}[hap]
+    return f"{match.group('sample')} {hap_label} ({genome})"
 
 
 def main() -> None:
@@ -69,16 +80,31 @@ def main() -> None:
         fh.write(f"hub {agg_name}\n")
         fh.write(f"shortLabel {short}\n")
         fh.write(f"longLabel {long}\n")
+        fh.write("genomesFile genomes.txt\n")
         fh.write(f"email {args.email}\n")
+        fh.write("descriptionUrl hubDescription.html\n")
 
     # genomes.txt
     with open(os.path.join(agg_dir, 'genomes.txt'), 'w') as fh:
-        for entry in hubs:
+        for order, entry in enumerate(hubs, start=1):
             genome = entry['genome']
             trackdb_abs = os.path.abspath(entry['trackdb'])
             rel = os.path.relpath(trackdb_abs, start=target)
+            description = _norm_opt(entry.get('description')) or _sample_label_from_trackdb(trackdb_abs, genome)
             fh.write(f"genome {genome}\n")
+            fh.write("organism Human\n")
+            fh.write("scientificName Homo sapiens\n")
+            fh.write(f"description {description}\n")
+            fh.write(f"orderKey {order}\n")
             fh.write(f"trackDb {rel}\n\n")
+
+    with open(os.path.join(agg_dir, 'hubDescription.html'), 'w') as fh:
+        fh.write("<!doctype html>\n")
+        fh.write("<html><head><meta charset=\"utf-8\"><title>HPRC track hub</title></head><body>\n")
+        fh.write(f"<h1>{long}</h1>\n")
+        fh.write("<p>HPRC annotation tracks for GenArk assemblies. Assemblies are identified by their GCA accessions and labelled by sample and haplotype where this can be inferred from the hub path.</p>\n")
+        fh.write("<p>Tracks are generated from CAT and Ensembl GFF3 annotations converted to BigBed/bigGenePred.</p>\n")
+        fh.write("</body></html>\n")
 
     # Optional: small versions file for traceability
     try:
@@ -93,4 +119,3 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
-

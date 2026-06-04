@@ -34,11 +34,29 @@ def sample_gff_seqids(path: str, limit: int = 10000) -> Set[str]:
                     break
     return ids
 
+VALID_NAME_COLUMNS = {
+    'auto',
+    'ucsc-style-name',
+    'sequence-name',
+    'assigned-molecule',
+    'genbank-accn',
+    'refseq-accn',
+}
+
 def parse_args():
     p = argparse.ArgumentParser(description='Build chrom.sizes from NCBI assembly_report.txt with optional chr logic from a GFF hint.')
     p.add_argument('--report', required=True, help='Path to assembly_report.txt')
     p.add_argument('--gff', default='', help='Path to a representative GFF3 (can be .gz) to sniff chr usage')
     p.add_argument('--force-ucsc', action='store_true', help='Force UCSC-style names (chr*); ignores GFF sniffing')
+    p.add_argument(
+        '--name-column',
+        default='auto',
+        choices=sorted(VALID_NAME_COLUMNS),
+        help=(
+            'Assembly report column to use for chrom.sizes names. Use genbank-accn '
+            'for GenArk track hubs when CAT/Ensembl tracks are normalized to INSDC/GenBank ids.'
+        ),
+    )
     p.add_argument('--out', required=True, help='Output chrom.sizes path')
     return p.parse_args()
 
@@ -63,10 +81,11 @@ def main():
         key = h.strip().lower().replace(' ', '-').replace('_', '-')
         idx[key] = i
 
-    # Candidate name columns, in preference order
+    # Candidate name columns, in preference order for legacy auto mode.
     candidates = [
         'ucsc-style-name',
         'sequence-name',
+        'assigned-molecule',
         'refseq-accn',
         'genbank-accn',
     ]
@@ -85,9 +104,13 @@ def main():
                     if v and v.lower() != 'na':
                         name_sets[k].add(v)
 
-    # Choose the best-matching column
-    chosen = None
-    if name_sets:
+    # Choose the best-matching column, unless explicitly configured.
+    chosen = None if a.name_column == 'auto' else a.name_column
+    if chosen and chosen not in idx:
+        print(f"Requested name column '{chosen}' is not present in assembly report header", file=sys.stderr)
+        sys.exit(2)
+
+    if not chosen and name_sets:
         # Score by intersection with GFF ids
         scores = {k: (len(name_sets[k] & gff_ids) if gff_ids else 0) for k in name_sets}
         # If forcing UCSC and ucsc column exists and has any non-na values, bias strongly
@@ -145,6 +168,9 @@ def main():
             written += 1
     if written == 0:
         print('No rows written to chrom.sizes; check assembly_report format', file=sys.stderr)
+        sys.exit(3)
+
+    print(f"Wrote {written} chrom.sizes rows using assembly report column: {chosen}", file=sys.stderr)
 
 if __name__ == '__main__':
     main()

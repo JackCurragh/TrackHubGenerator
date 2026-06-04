@@ -2,7 +2,7 @@ process CONVERT_BEDGRAPH_TO_BIGWIG {
     tag "$meta.id"
     label 'process_low'
 
-    container "docker://quay.io/biocontainers/ucsc-bedgraphtobigwig:357--1"
+    container "quay.io/biocontainers/ucsc-bedgraphtobigwig:357--1"
 
     input:
     tuple val(meta), path(bedgraph), path(chrom_sizes)
@@ -16,6 +16,7 @@ process CONVERT_BEDGRAPH_TO_BIGWIG {
     def prefix = task.ext.prefix ?: "${meta.id}"
     def bgHarmonized = "${prefix}.harmonized.bedgraph"
     def bgSorted = "${prefix}.sorted.bedgraph"
+    def dropMissing = params.drop_missing_contigs == true
     """
     # Harmonize bedGraph chrom names to match chrom.sizes per-contig (only change when it yields a match)
     awk '
@@ -40,7 +41,7 @@ process CONVERT_BEDGRAPH_TO_BIGWIG {
     awk 'BEGIN{OFS="\t"} FNR==NR {sizes[\$1]=1; next} { if(\$0 ~ /^(track|browser|#)/) next; if(!seen[\$1]++){ if(!( \$1 in sizes)) miss[\$1]=1 }} END{for(c in miss) print c}' \
         $chrom_sizes $bgHarmonized > ${prefix}.missing.post || true
     if [ -s ${prefix}.missing.post ]; then
-        if ${params.drop_missing_contigs ?: true}; then
+        if ${dropMissing}; then
             echo "[WARN] Dropping records on contigs absent from chrom.sizes:" >&2
             head -n 50 ${prefix}.missing.post >&2
             awk 'BEGIN{OFS="\t"} FNR==NR {sizes[\$1]=1; next} (NR==FNR){next} { if(\$0 ~ /^(track|browser|#)/){ print; next } if(\$1 in sizes) print }' $chrom_sizes $bgHarmonized > ${bgHarmonized}.filtered

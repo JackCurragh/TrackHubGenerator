@@ -2,7 +2,7 @@ process GET_CHROM_SIZES_FASTA {
     tag "$fasta.baseName"
     label 'process_low'
 
-    container 'docker://quay.io/biocontainers/samtools:1.17--h00cdaf9_0'
+    container 'quay.io/biocontainers/samtools:1.17--h00cdaf9_0'
 
     input:
     tuple val(genome), path(fasta)

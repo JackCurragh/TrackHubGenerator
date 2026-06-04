@@ -15,6 +15,7 @@ include { GENERATE_TRACKHUB } from './modules/local/generate_trackhub.nf'
 include { MOVE_TO_FTP } from './modules/local/move_to_ftp.nf'
 include { PROCESS_LOG_FILES } from './modules/local/process_logfiles.nf'
 include { AGGREGATE_TRACKHUB } from './modules/local/aggregate_trackhubs.nf'
+include { WRITE_JBROWSE_CONFIG } from './modules/local/write_jbrowse_config.nf'
 
 // Main workflow
 workflow {
@@ -54,13 +55,22 @@ workflow {
     ch_bigwig   = ch_files.bigwig
     ch_gff3     = ch_files.gff3
 
+    ch_all_genomes = ch_genome_reports.map { g, rep -> g }.unique()
+
     // Chrom.sizes per genome via assembly report when available
     ch_from_reports = ch_genome_reports
         .filter { genome, rep -> rep }
         .map    { genome, rep -> [ genome, file(rep) ] }
+    ch_empty_reports = ch_all_genomes.map { genome -> [ genome, file('/dev/null') ] }
+    ch_reports_for_conversion = ch_from_reports
+        .mix(ch_empty_reports)
+        .groupTuple()
+        .map { genome, reports ->
+            def picked = (reports instanceof List) ? reports.find { it.toString() != '/dev/null' } : reports
+            [ genome, picked ?: file('/dev/null') ]
+        }
 
     // Prepare a GFF hint per genome, defaulting to '' if no GFF is present
-    ch_all_genomes = ch_genome_reports.map { g, rep -> g }.unique()
     ch_gff_hint_present = ch_gff3
         .map { meta, p -> [ meta.genome, p ] }
     ch_gff_hint_empty = ch_all_genomes.map { g -> [ g, '' ] }
@@ -107,7 +117,7 @@ workflow {
     }
 
     if (ch_gff3) {
-        GFF3_PROCESSING(ch_gff3, ch_chrom_sizes)
+        GFF3_PROCESSING(ch_gff3, ch_chrom_sizes, ch_reports_for_conversion)
         ch_bigbed = ch_bigbed.mix(GFF3_PROCESSING.out.bigbed)
     }
 
@@ -133,6 +143,27 @@ workflow {
     }
 
     GENERATE_TRACKHUB(ch_hubs)
+
+    if (params.emit_jbrowse_config) {
+        if (!params.jbrowse_base_url || !params.jbrowse_twobit_url_template) {
+            error "JBrowse config export requires --jbrowse_base_url and --jbrowse_twobit_url_template"
+        }
+        GENERATE_TRACKHUB.out.trackhub.collect().map { hubs ->
+            def root = file("${params.outdir}/trackhubs")
+            if (!root.exists()) {
+                root = file("${params.outdir}/trackhubs")
+            }
+            root
+        }.set { ch_trackhubs_root_for_jbrowse }
+
+        WRITE_JBROWSE_CONFIG(
+            file("${projectDir}/bin/write_jbrowse_config.py"),
+            ch_trackhubs_root_for_jbrowse,
+            params.jbrowse_base_url,
+            params.jbrowse_twobit_url_template,
+            params.jbrowse_chrom_sizes_url_template ?: ''
+        )
+    }
 
     // Optionally aggregate multiple hubs using a JSON manifest of entries
     if (params.aggregate_name && params.aggregate_manifest) {
@@ -174,4 +205,17 @@ workflow AGGREGATOR {
         params.aggregate_short_label ?: params.aggregate_name,
         params.aggregate_long_label ?: "${params.aggregate_name} aggregated hub"
     )
+
+    if (params.emit_jbrowse_config) {
+        if (!params.jbrowse_base_url || !params.jbrowse_twobit_url_template) {
+            error "JBrowse config export requires --jbrowse_base_url and --jbrowse_twobit_url_template"
+        }
+        WRITE_JBROWSE_CONFIG(
+            file("${projectDir}/bin/write_jbrowse_config.py"),
+            Channel.value(file("${params.outdir}/trackhubs")),
+            params.jbrowse_base_url,
+            params.jbrowse_twobit_url_template,
+            params.jbrowse_chrom_sizes_url_template ?: ''
+        )
+    }
 }

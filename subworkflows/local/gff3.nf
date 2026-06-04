@@ -8,6 +8,7 @@ workflow GFF3_PROCESSING {
     take:
     ch_gff3_files   // channel: [ val(meta), path(gff3) ]
     ch_chrom_sizes  // channel: [ val(genome), path(chrom_sizes) ]
+    ch_assembly_reports // channel: [ val(genome), path(assembly_report) ]
 
     main:
 
@@ -24,11 +25,16 @@ workflow GFF3_PROCESSING {
         .filter { meta, bed, genome, sizes -> meta.genome == genome }
         .map    { meta, bed, genome, sizes -> [ meta, bed, sizes ] }
 
+    ch_join_reports = ch_join_sizes
+        .combine(ch_assembly_reports)
+        .filter { meta, bed, sizes, genome, report -> meta.genome == genome }
+        .map    { meta, bed, sizes, genome, report -> [ meta, bed, sizes, report ] }
+
     // Add the AutoSql schema file to each tuple
     ch_as = Channel.fromPath("${projectDir}/assets/bigGenePred.as")
-    ch_join = ch_join_sizes
+    ch_join = ch_join_reports
         .combine(ch_as)
-        .map { meta, bed, sizes, as_path -> [ meta, bed, sizes, as_path ] }
+        .map { meta, bed, sizes, report, as_path -> [ meta, bed, sizes, as_path, report ] }
 
     UCSC_BED_TO_BIGBED_BIGGENEPRED(ch_join)
     ch_bigbed = UCSC_BED_TO_BIGBED_BIGGENEPRED.out.bigbed
