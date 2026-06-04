@@ -10,6 +10,8 @@ import re
 import shutil
 import tempfile
 import time
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import as_completed
 from collections import defaultdict
 from collections import OrderedDict
 from pathlib import Path
@@ -60,6 +62,12 @@ def parse_args() -> argparse.Namespace:
             "Include gene rows with no usable symbol. By default these are skipped because CAT can contain "
             "millions of assembly-local IDs that make the browser lookup large and hard to use."
         ),
+    )
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="Number of parallel GFF input rows to scan. Use 1 for serial execution.",
     )
     return parser.parse_args()
 
@@ -290,10 +298,142 @@ def print_write_progress(done: int, total: int, genes: int, start_time: float) -
     )
 
 
+def empty_scan_stats() -> dict[str, int]:
+    return {
+        "rows": 0,
+        "gene_features_seen": 0,
+        "gene_entries": 0,
+        "skipped_unnamed": 0,
+        "missing_bigbeds": 0,
+        "unmapped_seqids": 0,
+    }
+
+
+def add_scan_stats(target: dict[str, int], source: dict[str, int]) -> None:
+    for key, value in source.items():
+        target[key] = target.get(key, 0) + value
+
+
+def scan_row_to_shards(
+    row_i: int,
+    row: dict[str, str],
+    trackhubs_root_text: str,
+    tmp_root_text: str,
+    n_shards: int,
+    base_url: str,
+    include_unnamed: bool,
+) -> dict[str, Any]:
+    trackhubs_root = Path(trackhubs_root_text)
+    tmp_root = Path(tmp_root_text)
+    run = row["Run"]
+    genome = row["Genome"]
+    hub = row["Hub"]
+    source = source_from_run(run)
+    sample, haplotype = sample_haplotype_from_hub(hub)
+    gff = Path(row["Path"])
+    report = Path(row["AssemblyReport"])
+    bigbed = trackhubs_root / hub / genome / f"{hub}_{run}.bigBed"
+    hub_file = trackhubs_root / hub / "hub.txt"
+    worker_dir = tmp_root / f"worker_{row_i:06d}"
+    worker_dir.mkdir(parents=True, exist_ok=True)
+    shard_paths = [worker_dir / f"shard_{i:04d}.jsonl" for i in range(n_shards)]
+    aliases = assembly_report_aliases(report)
+    stats = empty_scan_stats()
+    stats["rows"] = 1
+    if not bigbed.exists():
+        stats["missing_bigbeds"] += 1
+
+    with ShardWriters(shard_paths) as shard_writers, open_text(gff) as gff_handle:
+        for line in gff_handle:
+            if line.startswith("#"):
+                continue
+            fields = line.rstrip("\n").split("\t")
+            if len(fields) < 9 or fields[2] != "gene":
+                continue
+            seqid = fields[0]
+            genbank_seqid = aliases.get(seqid, seqid)
+            if genbank_seqid == seqid and aliases and seqid not in aliases.values():
+                stats["unmapped_seqids"] += 1
+
+            attrs = parse_attrs(fields[8])
+            gene_id = pick_attr(attrs, ["gene_id", "ID", "Dbxref"])
+            symbol = pick_attr(attrs, ["gene_name", "Name", "gene", "standard_name"])
+            name = pick_attr(attrs, ["description", "Note", "product"])
+            biotype = pick_attr(attrs, ["gene_biotype", "biotype", "gene_type"])
+            stats["gene_features_seen"] += 1
+            if not is_useful_lookup_gene(source, symbol, gene_id, include_unnamed):
+                stats["skipped_unnamed"] += 1
+                continue
+            key = gene_key(symbol, gene_id)
+
+            entry = {
+                "sample": sample,
+                "haplotype": haplotype,
+                "assembly_accession": genome,
+                "hub": hub,
+                "source": source,
+                "gene_id": gene_id,
+                "symbol": symbol,
+                "name": name,
+                "biotype": biotype,
+                "region_name": seqid,
+                "genbank_seqid": genbank_seqid,
+                "start": int(fields[3]),
+                "end": int(fields[4]),
+                "strand": fields[6],
+                "trackhub_path": str(hub_file),
+                "trackhub_url": public_url(base_url, trackhubs_root, hub_file) if hub_file.exists() else "",
+                "bigbed_path": str(bigbed),
+                "bigbed_url": public_url(base_url, trackhubs_root, bigbed) if bigbed.exists() else "",
+            }
+            shard_writers.write(shard_for_key(key, n_shards), key, entry)
+            stats["gene_entries"] += 1
+
+    return {"row_i": row_i, "run": run, "stats": stats}
+
+
+def add_assembly_metadata(
+    assemblies: dict[str, dict[str, Any]],
+    row: dict[str, str],
+    trackhubs_root: Path,
+    base_url: str,
+) -> None:
+    run = row["Run"]
+    genome = row["Genome"]
+    hub = row["Hub"]
+    source = source_from_run(run)
+    sample, haplotype = sample_haplotype_from_hub(hub)
+    gff = Path(row["Path"])
+    bigbed = trackhubs_root / hub / genome / f"{hub}_{run}.bigBed"
+    trackdb = trackhubs_root / hub / genome / "trackDb.txt"
+    hub_file = trackhubs_root / hub / "hub.txt"
+    assembly = assemblies.setdefault(
+        genome,
+        {
+            "assembly_accession": genome,
+            "sample": sample,
+            "haplotype": haplotype,
+            "hub": hub,
+            "hub_path": str(hub_file),
+            "hub_url": public_url(base_url, trackhubs_root, hub_file) if hub_file.exists() else "",
+            "trackdb_path": str(trackdb),
+            "tracks": {},
+        },
+    )
+    assembly["tracks"][source] = {
+        "run": run,
+        "source_gff": str(gff),
+        "bigbed_path": str(bigbed),
+        "bigbed_url": public_url(base_url, trackhubs_root, bigbed) if bigbed.exists() else "",
+    }
+
+
 def main() -> None:
     args = parse_args()
     if args.shards < 1:
         raise SystemExit("--shards must be >= 1")
+    if args.jobs < 1:
+        raise SystemExit("--jobs must be >= 1")
 
     input_csv = Path(args.input_csv)
     trackhubs_root = Path(args.trackhubs_root)
@@ -303,109 +443,35 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     genes_dir.mkdir(parents=True, exist_ok=True)
     tmp_root = tmp_root_for(args, output_dir)
-    shard_paths = [tmp_root / f"shard_{i:04d}.jsonl" for i in range(args.shards)]
 
     assemblies: dict[str, dict[str, Any]] = {}
-    report_cache: dict[Path, dict[str, str]] = {}
-    stats = {
-        "rows": 0,
-        "gene_features_seen": 0,
-        "gene_entries": 0,
-        "skipped_unnamed": 0,
-        "missing_bigbeds": 0,
-        "unmapped_seqids": 0,
-    }
+    stats = empty_scan_stats()
 
     try:
         start_time = time.monotonic()
         print(
-            f"Building gene lookup from {total_rows} input rows into {args.shards} temporary shards at {tmp_root}",
+            f"Building gene lookup from {total_rows} input rows with {args.jobs} job(s) "
+            f"into {args.shards} temporary shards at {tmp_root}",
             flush=True,
         )
-        with input_csv.open(newline="") as handle, ShardWriters(shard_paths) as shard_writers:
-            for row in csv.DictReader(handle):
-                stats["rows"] += 1
-                run = row["Run"]
-                genome = row["Genome"]
-                hub = row["Hub"]
-                source = source_from_run(run)
-                sample, haplotype = sample_haplotype_from_hub(hub)
-                gff = Path(row["Path"])
-                report = Path(row["AssemblyReport"])
-                bigbed = trackhubs_root / hub / genome / f"{hub}_{run}.bigBed"
-                trackdb = trackhubs_root / hub / genome / "trackDb.txt"
-                hub_file = trackhubs_root / hub / "hub.txt"
+        with input_csv.open(newline="") as handle:
+            rows = list(csv.DictReader(handle))
 
-                assembly = assemblies.setdefault(
-                    genome,
-                    {
-                        "assembly_accession": genome,
-                        "sample": sample,
-                        "haplotype": haplotype,
-                        "hub": hub,
-                        "hub_path": str(hub_file),
-                        "hub_url": public_url(args.base_url, trackhubs_root, hub_file) if hub_file.exists() else "",
-                        "trackdb_path": str(trackdb),
-                        "tracks": {},
-                    },
+        for row in rows:
+            add_assembly_metadata(assemblies, row, trackhubs_root, args.base_url)
+
+        if args.jobs == 1:
+            for row_i, row in enumerate(rows, start=1):
+                result = scan_row_to_shards(
+                    row_i,
+                    row,
+                    str(trackhubs_root),
+                    str(tmp_root),
+                    args.shards,
+                    args.base_url,
+                    args.include_unnamed,
                 )
-                assembly["tracks"][source] = {
-                    "run": run,
-                    "source_gff": str(gff),
-                    "bigbed_path": str(bigbed),
-                    "bigbed_url": public_url(args.base_url, trackhubs_root, bigbed) if bigbed.exists() else "",
-                }
-
-                if not bigbed.exists():
-                    stats["missing_bigbeds"] += 1
-
-                aliases = report_cache.setdefault(report, assembly_report_aliases(report))
-
-                with open_text(gff) as gff_handle:
-                    for line in gff_handle:
-                        if line.startswith("#"):
-                            continue
-                        fields = line.rstrip("\n").split("\t")
-                        if len(fields) < 9 or fields[2] != "gene":
-                            continue
-                        seqid = fields[0]
-                        genbank_seqid = aliases.get(seqid, seqid)
-                        if genbank_seqid == seqid and aliases and seqid not in aliases.values():
-                            stats["unmapped_seqids"] += 1
-
-                        attrs = parse_attrs(fields[8])
-                        gene_id = pick_attr(attrs, ["gene_id", "ID", "Dbxref"])
-                        symbol = pick_attr(attrs, ["gene_name", "Name", "gene", "standard_name"])
-                        name = pick_attr(attrs, ["description", "Note", "product"])
-                        biotype = pick_attr(attrs, ["gene_biotype", "biotype", "gene_type"])
-                        stats["gene_features_seen"] += 1
-                        if not is_useful_lookup_gene(source, symbol, gene_id, args.include_unnamed):
-                            stats["skipped_unnamed"] += 1
-                            continue
-                        key = gene_key(symbol, gene_id)
-
-                        entry = {
-                            "sample": sample,
-                            "haplotype": haplotype,
-                            "assembly_accession": genome,
-                            "hub": hub,
-                            "source": source,
-                            "gene_id": gene_id,
-                            "symbol": symbol,
-                            "name": name,
-                            "biotype": biotype,
-                            "region_name": seqid,
-                            "genbank_seqid": genbank_seqid,
-                            "start": int(fields[3]),
-                            "end": int(fields[4]),
-                            "strand": fields[6],
-                            "trackhub_path": str(hub_file),
-                            "trackhub_url": public_url(args.base_url, trackhubs_root, hub_file) if hub_file.exists() else "",
-                            "bigbed_path": str(bigbed),
-                            "bigbed_url": public_url(args.base_url, trackhubs_root, bigbed) if bigbed.exists() else "",
-                        }
-                        shard_writers.write(shard_for_key(key, args.shards), key, entry)
-                        stats["gene_entries"] += 1
+                add_scan_stats(stats, result["stats"])
                 if args.progress_every and stats["rows"] % args.progress_every == 0:
                     print_scan_progress(
                         stats["rows"],
@@ -413,8 +479,35 @@ def main() -> None:
                         stats["gene_entries"],
                         stats["skipped_unnamed"],
                         start_time,
-                        row["Run"],
+                        result["run"],
                     )
+        else:
+            with ProcessPoolExecutor(max_workers=args.jobs) as executor:
+                futures = [
+                    executor.submit(
+                        scan_row_to_shards,
+                        row_i,
+                        row,
+                        str(trackhubs_root),
+                        str(tmp_root),
+                        args.shards,
+                        args.base_url,
+                        args.include_unnamed,
+                    )
+                    for row_i, row in enumerate(rows, start=1)
+                ]
+                for future in as_completed(futures):
+                    result = future.result()
+                    add_scan_stats(stats, result["stats"])
+                    if args.progress_every and stats["rows"] % args.progress_every == 0:
+                        print_scan_progress(
+                            stats["rows"],
+                            total_rows,
+                            stats["gene_entries"],
+                            stats["skipped_unnamed"],
+                            start_time,
+                            result["run"],
+                        )
         if not args.progress_every or stats["rows"] % args.progress_every != 0:
             print_scan_progress(
                 stats["rows"],
@@ -426,17 +519,21 @@ def main() -> None:
             )
 
         gene_index = []
-        existing_shards = [path for path in shard_paths if path.exists()]
+        shard_groups: dict[int, list[Path]] = defaultdict(list)
+        for worker_dir in tmp_root.glob("worker_*"):
+            for shard_path in worker_dir.glob("shard_*.jsonl"):
+                shard_id = int(shard_path.stem.split("_")[1])
+                shard_groups[shard_id].append(shard_path)
+        existing_shards = sorted(shard_groups)
         write_start = time.monotonic()
         print(f"Writing per-gene JSON from {len(existing_shards)} non-empty shards", flush=True)
-        for shard_i, shard_path in enumerate(existing_shards, start=1):
-            if not shard_path.exists():
-                continue
+        for shard_i, shard_id in enumerate(existing_shards, start=1):
             genes: dict[str, list[dict[str, Any]]] = defaultdict(list)
-            with shard_path.open(encoding="utf-8") as shard_handle:
-                for line in shard_handle:
-                    item = json.loads(line)
-                    genes[item["key"]].append(item["entry"])
+            for shard_path in shard_groups[shard_id]:
+                with shard_path.open(encoding="utf-8") as shard_handle:
+                    for line in shard_handle:
+                        item = json.loads(line)
+                        genes[item["key"]].append(item["entry"])
 
             for key, entries in sorted(genes.items(), key=lambda item: item[0].lower()):
                 prefix, safe = safe_gene_filename(key)
