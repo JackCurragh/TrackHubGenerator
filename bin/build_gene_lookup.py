@@ -53,6 +53,14 @@ def parse_args() -> argparse.Namespace:
         default=10,
         help="Print progress every N input CSV rows or N shard files. Use 0 to disable progress.",
     )
+    parser.add_argument(
+        "--include-unnamed",
+        action="store_true",
+        help=(
+            "Include gene rows with no usable symbol. By default these are skipped because CAT can contain "
+            "millions of assembly-local IDs that make the browser lookup large and hard to use."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -179,6 +187,14 @@ def gene_key(symbol: str, gene_id: str) -> str:
     return symbol or gene_id or "unknown"
 
 
+def is_useful_lookup_gene(source: str, symbol: str, gene_id: str, include_unnamed: bool) -> bool:
+    if include_unnamed:
+        return bool(symbol or gene_id)
+    if symbol:
+        return True
+    return source == "ENSEMBL" and gene_id.startswith("ENS")
+
+
 def shard_for_key(key: str, n_shards: int) -> int:
     digest = hashlib.blake2s(key.encode("utf-8"), digest_size=4).hexdigest()
     return int(digest, 16) % n_shards
@@ -244,13 +260,20 @@ def format_elapsed(seconds: float) -> str:
     return f"{seconds}s"
 
 
-def print_scan_progress(done: int, total: int, genes: int, start_time: float, label: str = "") -> None:
+def print_scan_progress(
+    done: int,
+    total: int,
+    genes: int,
+    skipped: int,
+    start_time: float,
+    label: str = "",
+) -> None:
     elapsed = time.monotonic() - start_time
     pct = 100 * done / total if total else 100
     rate = 60 * done / elapsed if elapsed > 0 else 0
     suffix = f" {label}" if label else ""
     print(
-        f"[scan] {done}/{total} rows ({pct:.1f}%) | genes={genes:,} | "
+        f"[scan] {done}/{total} rows ({pct:.1f}%) | indexed={genes:,} | skipped_unnamed={skipped:,} | "
         f"elapsed={format_elapsed(elapsed)} | rate={rate:.2f} rows/min{suffix}",
         flush=True,
     )
@@ -286,7 +309,9 @@ def main() -> None:
     report_cache: dict[Path, dict[str, str]] = {}
     stats = {
         "rows": 0,
+        "gene_features_seen": 0,
         "gene_entries": 0,
+        "skipped_unnamed": 0,
         "missing_bigbeds": 0,
         "unmapped_seqids": 0,
     }
@@ -353,6 +378,10 @@ def main() -> None:
                         symbol = pick_attr(attrs, ["gene_name", "Name", "gene", "standard_name"])
                         name = pick_attr(attrs, ["description", "Note", "product"])
                         biotype = pick_attr(attrs, ["gene_biotype", "biotype", "gene_type"])
+                        stats["gene_features_seen"] += 1
+                        if not is_useful_lookup_gene(source, symbol, gene_id, args.include_unnamed):
+                            stats["skipped_unnamed"] += 1
+                            continue
                         key = gene_key(symbol, gene_id)
 
                         entry = {
@@ -378,9 +407,23 @@ def main() -> None:
                         shard_writers.write(shard_for_key(key, args.shards), key, entry)
                         stats["gene_entries"] += 1
                 if args.progress_every and stats["rows"] % args.progress_every == 0:
-                    print_scan_progress(stats["rows"], total_rows, stats["gene_entries"], start_time, row["Run"])
+                    print_scan_progress(
+                        stats["rows"],
+                        total_rows,
+                        stats["gene_entries"],
+                        stats["skipped_unnamed"],
+                        start_time,
+                        row["Run"],
+                    )
         if not args.progress_every or stats["rows"] % args.progress_every != 0:
-            print_scan_progress(stats["rows"], total_rows, stats["gene_entries"], start_time, "complete")
+            print_scan_progress(
+                stats["rows"],
+                total_rows,
+                stats["gene_entries"],
+                stats["skipped_unnamed"],
+                start_time,
+                "complete",
+            )
 
         gene_index = []
         existing_shards = [path for path in shard_paths if path.exists()]
